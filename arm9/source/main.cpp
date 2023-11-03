@@ -18,7 +18,7 @@
 #include "font.h"
 #include "language.h"
 #include "my_sd.h"
-#include "nitrofs.h"
+// #include "nitrofs.h"
 #include "tonccpy.h"
 #include "version.h"
 
@@ -45,9 +45,7 @@ static int bg3;
 //---------------------------------------------------------------------------------
 void stop (void) {
 //---------------------------------------------------------------------------------
-	while (1) {
-		swiWaitForVBlank();
-	}
+	while (1) {	swiWaitForVBlank(); }
 }
 
 //---------------------------------------------------------------------------------
@@ -76,10 +74,28 @@ void vblankHandler (void) {
 	}
 }
 
+extern bool __dsimode;
+bool forceNTRMode = true;
+
 //---------------------------------------------------------------------------------
 int main(int argc, char **argv) {
 //---------------------------------------------------------------------------------
-
+	if (forceNTRMode && (REG_SCFG_EXT & BIT(31))) {
+		__dsimode = false;
+		// MBK settings for NTR mode games
+		*((vu32*)REG_MBK1)=0x8D898581;
+		*((vu32*)REG_MBK2)=0x91898581;
+		*((vu32*)REG_MBK3)=0x91999591;
+		*((vu32*)REG_MBK4)=0x91898581;
+		*((vu32*)REG_MBK5)=0x91999591;
+		REG_MBK6 = 0x00003000;
+		REG_MBK7 = 0x00003000;
+		REG_MBK8 = 0x00003000;
+		REG_SCFG_EXT=0x83000000;
+		fifoWaitValue32(FIFO_USER_06);
+		// REG_SCFG_EXT &= ~(1UL << 31);
+	}
+	
 	// overwrite reboot stub identifier
 	extern u64 *fake_heap_end;
 	*fake_heap_end = 0;
@@ -126,20 +142,15 @@ int main(int argc, char **argv) {
 	if (isDSiMode()) {
 		bios9iEnabled = true;
 		if (!arm7SCFGLocked) {
-			//font->print(-2, -4, false, " Held - Disable NAND access", Alignment::right);
 			font->print(-2, -3, false, " Held - Disable cart access", Alignment::right);
 			font->print(-2, -2, false, "Do this if it crashes here", Alignment::right);
-		} /*else {
-			font->print(-2, -3, false, " Held - Disable NAND access", Alignment::right);
-			font->print(-2, -2, false, "Do this if it crashes here", Alignment::right);
-		}*/
+		}
 	}
 
 	// Display for 2 seconds
 	font->update(false);
-	for (int i = 0; i < 60*2; i++) {
-		swiWaitForVBlank();
-	}
+	// for (int i = 0; i < 60*2; i++) { swiWaitForVBlank(); }
+	for (int i = 0; i < 60; i++) { swiWaitForVBlank(); }
 
 	font->clear(false);
 	font->print(1, 1, false, titleName);
@@ -150,13 +161,10 @@ int main(int argc, char **argv) {
 
 	sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM
 
-	if (isDSiMode() || !isRegularDS) {
-		fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
-		if (!sdRemoved) {
-			sdMounted = sdMount();
-		}
-	}
-	if (isDSiMode()) {
+	fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
+	if (!sdRemoved)sdMounted = sdMount();
+	
+	/*if (isDSiMode()) {
 		scanKeys();
 		yHeld = (keysHeld() & KEY_Y);
 		*(vu32*)(0x0DFFFE0C) = 0x474D3969;		// Check for 32MB of RAM
@@ -165,16 +173,7 @@ int main(int argc, char **argv) {
 		if (ram32MB) {
 			is3DS = fifoGetValue32(FIFO_USER_05) != 0xD2;
 		}
-		//if (!(keysHeld() & KEY_X)) {
-			nandMount();
-		//}
-		//is3DS = ((access("sd:/Nintendo 3DS", F_OK) == 0) && (*(vu32*)(0x0DFFFE0C) == 0x474D3969));
-		/*FILE* cidFile = fopen("sd:/gm9i/CID.bin", "wb");
-		fwrite((void*)0x2FFD7BC, 1, 16, cidFile);
-		fclose(cidFile);*/
-		/*FILE* cidFile = fopen("sd:/gm9i/ConsoleID.bin", "wb");
-		fwrite((void*)0x2FFFD00, 1, 8, cidFile);
-		fclose(cidFile);*/
+		nandMount();
 	} else if (REG_SCFG_EXT != 0) {
 		*(vu32*)(0x0DFFFE0C) = 0x474D3969;		// Check for 32MB of RAM
 		bool ram32MB = *(vu32*)(0x0DFFFE0C) == 0x474D3969;
@@ -235,14 +234,15 @@ int main(int argc, char **argv) {
 		}
 	} else if (isRegularDS && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS)) {
 		ramdriveMount(false);
-	}
+	}*/
 	if (!isDSiMode() || !yHeld) {
 		flashcardMounted = flashcardMount();
 		flashcardMountSkipped = false;
 	}
 
 	// Try to init NitroFS
-	char nandPath[64] = {0};
+	nitroMounted = false;
+	/*char nandPath[64] = {0};
 	char sdnandPath[64] = {0};
 	if(isDSiMode()) {
 		sprintf(nandPath, "nand:/title/%08x/%08x/content/000000%02x.app", *(unsigned int*)0x02FFE234, *(unsigned int*)0x02FFE230, *(u8*)0x02FFE01E);
@@ -264,13 +264,12 @@ int main(int argc, char **argv) {
 		font->update(false);
 		for (int i = 0; i < 30; i++)
 			swiWaitForVBlank();
-	}
+	}*/
 
 	// Ensure gm9i folder exists
 	char folderPath[10];
 	sprintf(folderPath, "%s:/gm9i", (sdMounted ? "sd" : "fat"));
-	if ((sdMounted || flashcardMounted) && access(folderPath, F_OK) != 0)
-		mkdir(folderPath, 0777);
+	if ((sdMounted || flashcardMounted) && access(folderPath, F_OK) != 0)mkdir(folderPath, 0777);
 
 	// Load config
 	config = new Config();

@@ -34,6 +34,8 @@
 
 #define SD_IRQ_STATUS (*(vu32*)0x400481C)
 
+#define BASE_DELAY (100)
+
 void my_installSystemFIFO(void);
 void my_sdmmc_get_cid(int devicenumber, u32 *cid);
 
@@ -100,6 +102,35 @@ void aes(void* in, void* out, void* iv, u32 method){ //this is sort of a bodged 
 	//REG_AES_CNT &= ~0x80000000;
 	//if (method & (AES_CTR_DECRYPT | AES_CTR_ENCRYPT)) add_ctr((u8*)iv);
 }
+
+void EnableSlot1() {
+	int oldIME = enterCriticalSection();
+	while((REG_SCFG_MC & 0x0c) == 0x0c) swiDelay(1 * BASE_DELAY);
+	if(!(REG_SCFG_MC & 0x0c)) {
+		REG_SCFG_MC = (REG_SCFG_MC & ~0x0c) | 4;
+		swiDelay(10 * BASE_DELAY);
+		REG_SCFG_MC = (REG_SCFG_MC & ~0x0c) | 8;
+		swiDelay(10 * BASE_DELAY);
+	}
+	leaveCriticalSection(oldIME);
+}
+
+void DisableSlot1() {
+	int oldIME = enterCriticalSection();
+
+	while((REG_SCFG_MC & 0x0c) == 0x0c) swiDelay(1 * BASE_DELAY);
+
+	if((REG_SCFG_MC & 0x0c) == 8) {
+
+		REG_SCFG_MC = (REG_SCFG_MC & ~0x0c) | 0x0c;
+		while((REG_SCFG_MC & 0x0c) != 0) swiDelay(1 * BASE_DELAY);
+	}
+
+	leaveCriticalSection(oldIME);
+}
+
+extern bool __dsimode;
+bool forceNTRMode = true;
 
 //---------------------------------------------------------------------------------
 int main() {
@@ -174,11 +205,37 @@ int main() {
 			}
 		}
 	}
-
+	
+	bool scfgUnlocked = false;
+	if (forceNTRMode && (REG_SCFG_EXT & BIT(31))) {
+		__dsimode = false;
+		REG_MBK9=0xFCFFFF0F;
+		REG_MBK6=0x09403900;
+		REG_MBK7=0x09803940;
+		REG_MBK8=0x09C03980;
+		// if (!(REG_SCFG_MC & BIT(0)) || !(REG_SCFG_MC & BIT(2)))EnableSlot1();
+		// if (!(REG_SCFG_CLK & BIT(0)))REG_SCFG_CLK |= BIT(0);
+		
+		DisableSlot1();
+		EnableSlot1();
+		
+		REG_SCFG_ROM = 0x703;
+		// REG_SCFG_CLK = 0x186;
+		// REG_SCFG_EXT = 0x92A40000;
+		// for (int i = 0; i < 20; i++) { while(REG_VCOUNT!=191); while(REG_VCOUNT==191); }
+		
+		// If on DSi, enable console soft reboot from power button short press.
+		/*if (REG_SNDEXTCNT != 0) {
+			i2cWriteRegister(0x4A, 0x12, 0x00);	// Press power-button for auto-reset
+			i2cWriteRegister(0x4A, 0x70, 0x01);	// Bootflag = Warmboot/SkipHealthSafety
+		}*/
+		scfgUnlocked = true;
+	}
+	
 	fifoSendValue32(FIFO_USER_03, REG_SCFG_EXT);
 	fifoSendValue32(FIFO_USER_07, *(u16*)(0x4004700));
 	fifoSendValue32(FIFO_USER_06, 1);
-
+		
 	// Keep the ARM7 mostly idle
 	while (!exitflag) {
 		if ( 0 == (REG_KEYINPUT & (KEY_SELECT | KEY_START | KEY_L | KEY_R))) {
@@ -191,8 +248,7 @@ int main() {
 		resyncClock();
 
 		// Send SD status
-		if(isDSiMode() || *(u16*)(0x4004700) != 0)
-			fifoSendValue32(FIFO_USER_04, SD_IRQ_STATUS);
+		if(isDSiMode() || *(u16*)(0x4004700) != 0)fifoSendValue32(FIFO_USER_04, SD_IRQ_STATUS);
 
 		// Dump EEPROM save
 		if(fifoCheckAddress(FIFO_USER_01)) {
@@ -205,7 +261,6 @@ int main() {
 					break;
 			}
 		}
-
 		swiWaitForVBlank();
 	}
 	return 0;

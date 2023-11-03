@@ -24,9 +24,17 @@
 #include "io_g6_common.h"
 #include "io_sc_common.h"
 #include "exptools.h"
+#include "read_card.h"
+
+
+#define NDS_HEADER 0x027FFE00
+static tNDSHeader* cartNds;
+static sNDSHeaderExt* cartNdsExt;
+u32 chipID;
 
 static sNDSHeader nds;
 
+static bool nrioMode = true;
 static bool slot1Enabled = true;
 
 bool nandMounted = false;
@@ -74,7 +82,6 @@ const char* getDrivePath(void) {
 }
 
 Drive getDriveFromPath(const char *path) {
-	Drive destDrive = currentDrive;
 	if(strncmp(path, "sd:", 3) == 0) {
 		return Drive::sdCard;
 	} else if(strncmp(path, "fat:", 4) == 0) {
@@ -198,7 +205,7 @@ void sdUnmount(void) {
 	sdMounted = false;
 }
 
-TWL_CODE DLDI_INTERFACE* dldiLoadFromBin (const u8 dldiAddr[]) {
+DLDI_INTERFACE* dldiLoadFromBin (const u8 dldiAddr[]) {
 	// Check that it is a valid DLDI
 	if (!dldiIsValid ((DLDI_INTERFACE*)dldiAddr)) {
 		return NULL;
@@ -231,7 +238,7 @@ TWL_CODE DLDI_INTERFACE* dldiLoadFromBin (const u8 dldiAddr[]) {
 	return device;
 }
 
-TWL_CODE bool UpdateCardInfo(char* gameid, char* gamename) {
+bool UpdateCardInfo(char* gameid, char* gamename) {
 	cardReadHeader((uint8*)0x02000000);
 	tonccpy(&nds, (void*)0x02000000, sizeof(sNDSHeader));
 	tonccpy(gameid, &nds.gameCode, 4);
@@ -250,7 +257,7 @@ const DISC_INTERFACE *dldiGet(void) {
 	return &io_dldi_data->ioInterface;
 }
 
-TWL_CODE bool twl_flashcardMount(void) {
+bool twl_flashcardMount(void) {
 	if (REG_SCFG_MC != 0x11) {
 		sysSetCardOwner (BUS_OWNER_ARM9);
 
@@ -293,8 +300,11 @@ TWL_CODE bool twl_flashcardMount(void) {
 		} else if (!memcmp(gameid, "ACEK", 4) || !memcmp(gameid, "YCEP", 4) || !memcmp(gameid, "AHZH", 4) || !memcmp(gameid, "CHPJ", 4) || !memcmp(gameid, "ADLP", 4)) {
 			io_dldi_data = dldiLoadFromBin(ak2_sd_dldi);
 			fatMountSimple("fat", dldiGet());
+		} else if (!memcmp(gameid, "ALXX", 4)) {
+			io_dldi_data = dldiLoadFromBin(scds2_sd_dldi);
+			fatMountSimple("fat", dldiGet());
 		}
-
+		
 		if (flashcardFound()) {
 			fatGetVolumeLabel("fat", fatLabel);
 			fixLabel(fatLabel);
@@ -308,22 +318,41 @@ TWL_CODE bool twl_flashcardMount(void) {
 	return false;
 }
 
+static void NRIOMount() {
+	cartNds = (tNDSHeader*)NDS_HEADER;
+	cardInit(cartNdsExt);
+	chipID = cardGetId();
+}
+
 bool flashcardMount(void) {
-	if (!isDSiMode() || (arm7SCFGLocked && !sdMountedDone)) {
+	if (nrioMode) {
+		NRIOMount();
 		fatInitDefault();
 		if (flashcardFound()) {
 			fatGetVolumeLabel("fat", fatLabel);
 			fixLabel(fatLabel);
 			struct statvfs st;
-			if (statvfs("fat:/", &st) == 0) {
-				fatSize = st.f_bsize * st.f_blocks;
-			}
+			if (statvfs("fat:/", &st) == 0)fatSize = st.f_bsize * st.f_blocks;
 			return true;
 		}
-		return false;
 	} else {
-		return twl_flashcardMount();
+		if (!isDSiMode() || (arm7SCFGLocked && !sdMountedDone)) {
+			fatInitDefault();
+			if (flashcardFound()) {
+				fatGetVolumeLabel("fat", fatLabel);
+				fixLabel(fatLabel);
+				struct statvfs st;
+				if (statvfs("fat:/", &st) == 0) {
+					fatSize = st.f_bsize * st.f_blocks;
+				}
+				return true;
+			}
+			return false;
+		} else {
+			return twl_flashcardMount();
+		}
 	}
+	return false;
 }
 
 void flashcardUnmount(void) {

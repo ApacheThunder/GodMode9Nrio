@@ -35,7 +35,7 @@ endif
 # GRAPHICS is a list of directories containing image files to be converted with grit
 # MAXMOD_SOUNDBANK contains a directory of music and sound effect files
 #---------------------------------------------------------------------------------
-TARGET		:=	GodMode9i
+TARGET		:=	GodMode9Nrio
 BUILD		:=	build
 SOURCES		:=	source source/flashcard source/graphics dldi-include mbedtls
 INCLUDES	:=	include dldi-include source source/flashcard source/graphics
@@ -61,7 +61,7 @@ LDFLAGS	=	-specs=../ds_arm9_hi.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project (order is important)
 #---------------------------------------------------------------------------------
-LIBS	:= 	-lfat -lnds9
+LIBS	:= 	-lfat -lnds329
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

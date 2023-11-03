@@ -17,7 +17,7 @@ include $(DEVKITARM)/ds_rules
 # SOURCES is a list of directories containing source code
 # INCLUDES is a list of directories containing extra header files
 #---------------------------------------------------------------------------------
-TARGET		:=	GodMode9i
+TARGET		:=	GodMode9Nrio
 BUILD		:=	build
 SOURCES		:=	source
 INCLUDES	:=	include build

@@ -35,7 +35,7 @@ _dldi_start:
 #ifndef NO_DLDI
 
 @---------------------------------------------------------------------------------
-@ Driver patch file standard header -- 16 bytes
+@ Driver patch file standard header -- 32 bytes
 #ifdef STANDARD_DLDI
 	.word	0xBF8DA5ED		@ Magic number to identify this region
 #else
@@ -43,9 +43,9 @@ _dldi_start:
 #endif
 	.asciz	" Chishm"		@ Identifying Magic string (8 bytes with null terminator)
 	.byte	0x01			@ Version number
-	.byte	0x0e		@ 16KiB	@ Log [base-2] of the size of this driver in bytes.
+	.byte	0x1a		@ 32KiB	@ Log [base-2] of the size of this driver in bytes.
 	.byte	0x00			@ Sections to fix
-	.byte 	0x0e		@ 16KiB	@ Log [base-2] of the allocated space in bytes.
+	.byte 	0x1a		@ 32KiB	@ Log [base-2] of the allocated space in bytes.
 	
 @---------------------------------------------------------------------------------
 @ Text identifier - can be anything up to 47 chars + terminating null -- 16 bytes
@@ -93,7 +93,7 @@ _DLDI_shutdown:
 	.align
 	.pool
 
-	.space (_dldi_start + 16384) - .	@ Fill to 16KiB
+	.space (_dldi_start + 32768) - .	@ Fill to 16KiB
 
 _dldi_end:
 	.end
@@ -111,7 +111,7 @@ _io_dldi:
 	.word	_DLDI_clearStatus		@
 	.word	_DLDI_shutdown			@
 
-	_DLDI_startup:
+_DLDI_startup:
 _DLDI_isInserted:
 _DLDI_readSectors:
 _DLDI_writeSectors:
