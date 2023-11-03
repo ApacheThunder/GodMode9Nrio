@@ -138,6 +138,11 @@ int main() {
 	*(vu32*)0x400481C = 0;				// Clear SD IRQ stat register
 	*(vu32*)0x4004820 = 0;				// Clear SD IRQ mask register
 
+	if (REG_SNDEXTCNT != 0 && forceNTRMode) {
+		my_i2cWriteRegister(0x4A, 0x12, 0x00);	// Press power-button for auto-reset
+		my_i2cWriteRegister(0x4A, 0x70, 0x01);	// Bootflag = Warmboot/SkipHealthSafety
+	}
+
 	// clear sound registers
 	dmaFillWords(0, (void*)0x04000400, 0x100);
 
@@ -206,7 +211,7 @@ int main() {
 		}
 	}
 	
-	bool scfgUnlocked = false;
+	// bool scfgUnlocked = false;
 	if (forceNTRMode && (REG_SCFG_EXT & BIT(31))) {
 		__dsimode = false;
 		REG_MBK9=0xFCFFFF0F;
@@ -223,13 +228,7 @@ int main() {
 		// REG_SCFG_CLK = 0x186;
 		// REG_SCFG_EXT = 0x92A40000;
 		// for (int i = 0; i < 20; i++) { while(REG_VCOUNT!=191); while(REG_VCOUNT==191); }
-		
-		// If on DSi, enable console soft reboot from power button short press.
-		/*if (REG_SNDEXTCNT != 0) {
-			i2cWriteRegister(0x4A, 0x12, 0x00);	// Press power-button for auto-reset
-			i2cWriteRegister(0x4A, 0x70, 0x01);	// Bootflag = Warmboot/SkipHealthSafety
-		}*/
-		scfgUnlocked = true;
+		// scfgUnlocked = true;
 	}
 	
 	fifoSendValue32(FIFO_USER_03, REG_SCFG_EXT);

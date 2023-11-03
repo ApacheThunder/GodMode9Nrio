@@ -5,6 +5,7 @@
 *.elf
 *.cmd
 data/*.bin
+title/
 .vscode
 *.DS_Store
 
