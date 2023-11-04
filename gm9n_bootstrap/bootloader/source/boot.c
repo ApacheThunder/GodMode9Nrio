@@ -1,10 +1,10 @@
 /*-----------------------------------------------------------------
  boot.c
-
+ 
  BootLoader
  Loads a file into memory and runs it
 
- All resetMemory and startBinary functions are based
+ All resetMemory and startBinary functions are based 
  on the MultiNDS loader by Darkain.
  Original source available at:
  http://cvs.sourceforge.net/viewcvs.py/ndslib/ndslib/examples/loader/boot/main.cpp
@@ -28,7 +28,7 @@ License:
 
  If you use this code, please give due credit and email me about your
  project at chishm@hotmail.com
-
+ 
 Helpful information:
  This code runs from VRAM bank C on ARM7
 ------------------------------------------------------------------*/
@@ -38,7 +38,6 @@ Helpful information:
 #include <nds/system.h>
 #include <nds/interrupts.h>
 #include <nds/timers.h>
-#include <nds/ipc.h>
 #define ARM9
 #undef ARM7
 #include <nds/memory.h>
@@ -47,13 +46,16 @@ Helpful information:
 #undef ARM9
 #define ARM7
 #include <nds/arm7/audio.h>
-#include <nds/arm7/sdmmc.h>
+
 #include "fat.h"
 #include "dldi_patcher.h"
 #include "card.h"
 #include "boot.h"
 
 void arm7clearRAM();
+int sdmmc_sdcard_readsectors(u32 sector_no, u32 numsectors, void *out);
+int sdmmc_sdcard_init();
+void sdmmc_controller_init();
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Important things
@@ -62,7 +64,6 @@ void arm7clearRAM();
 #define NDS_HEAD 0x02FFFE00
 #define TEMP_ARM9_START_ADDRESS (*(vu32*)0x02FFFFF4)
 
-#define REG_GPIO_WIFI *(vu16*)0x4004C04
 
 const char* bootName = "BOOT.NDS";
 
@@ -75,9 +76,18 @@ extern unsigned long argSize;
 extern unsigned long dsiSD;
 extern unsigned long dsiMode;
 
-bool sdRead = false;
 
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#ifdef NTRMODE
+void initMBKArm7() {	
+	REG_MBK9=0xFCFFFF0F;
+	REG_MBK6=0x09403900;
+	REG_MBK7=0x09803940;
+	REG_MBK8=0x09C03980;
+}
+#endif
+
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Firmware stuff
 
 #define FW_READ        0x03
@@ -117,7 +127,7 @@ static inline void copyLoop (u32* dest, const u32* src, u32 size) {
 
 /*-------------------------------------------------------------------------
 passArgs_ARM7
-Copies the command line arguments to the end of the ARM9 binary,
+Copies the command line arguments to the end of the ARM9 binary, 
 then sets a flag in memory for the loaded NDS to use
 --------------------------------------------------------------------------*/
 void passArgs_ARM7 (void) {
@@ -125,33 +135,35 @@ void passArgs_ARM7 (void) {
 	u32 ARM9_LEN = *((u32*)(NDS_HEAD + 0x02C));
 	u32* argSrc;
 	u32* argDst;
-
-	if (!argStart || !argSize)return;
+	
+	if (!argStart || !argSize) return;
 
 	if ( ARM9_DST == 0 && ARM9_LEN == 0) {
 		ARM9_DST = *((u32*)(NDS_HEAD + 0x038));
 		ARM9_LEN = *((u32*)(NDS_HEAD + 0x03C));
 	}
-
+	
 	argSrc = (u32*)(argStart + (int)&_start);
-
-	argDst = (u32*)((ARM9_DST + ARM9_LEN + 3) & ~3);		// Word aligned
-
+	
+	argDst = (u32*)((ARM9_DST + ARM9_LEN + 3) & ~3);		// Word aligned 
+	
 	if (dsiMode && (*(u8*)(NDS_HEAD + 0x012) & BIT(1))) {
 		u32 ARM9i_DST = *((u32*)(TWL_HEAD + 0x1C8));
 		u32 ARM9i_LEN = *((u32*)(TWL_HEAD + 0x1CC));
 		if (ARM9i_LEN) {
 			u32* argDst2 = (u32*)((ARM9i_DST + ARM9i_LEN + 3) & ~3);		// Word aligned
-			if (argDst2 > argDst)argDst = argDst2;
+			if (argDst2 > argDst)
+				argDst = argDst2;
 		}
 	}
 
 	copyLoop(argDst, argSrc, argSize);
-
+	
 	__system_argv->argvMagic = ARGV_MAGIC;
 	__system_argv->commandLine = (char*)argDst;
 	__system_argv->length = argSize;
 }
+
 
 /*-------------------------------------------------------------------------
 resetMemory_ARM7
@@ -161,10 +173,10 @@ Modified by Chishm:
  * Added STMIA clear mem loop
 --------------------------------------------------------------------------*/
 void resetMemory_ARM7 (void) {
-	int i, reg;
+	int i;
 	u8 settings1, settings2;
 	u32 settingsOffset = 0;
-
+	
 	REG_IME = 0;
 
 	for (i=0; i<16; i++) {
@@ -183,46 +195,31 @@ void resetMemory_ARM7 (void) {
 		DMA_DEST(i) = 0;
 		TIMER_CR(i) = 0;
 		TIMER_DATA(i) = 0;
-		for(reg=0; reg<0x1c; reg+=4)*((u32*)(0x04004104 + ((i*0x1c)+reg))) = 0; //Reset NDMA.
 	}
 	
-	// Clear out FIFO
-	REG_IPC_SYNC = 0;
-	REG_IPC_FIFO_CR = IPC_FIFO_ENABLE | IPC_FIFO_SEND_CLEAR;
-	REG_IPC_FIFO_CR = 0;
-
 	arm7clearRAM();
 
 	REG_IE = 0;
 	REG_IF = ~0;
-	REG_AUXIE = 0;
-	REG_AUXIF = ~0;
 	(*(vu32*)(0x04000000-4)) = 0;  //IRQ_HANDLER ARM7 version
 	(*(vu32*)(0x04000000-8)) = ~0; //VBLANK_INTR_WAIT_FLAGS, ARM7 version
 	REG_POWERCNT = 1;  //turn off power to stuff
-
+	
 	// Get settings location
 	boot_readFirmware((u32)0x00020, (u8*)&settingsOffset, 0x2);
 	settingsOffset *= 8;
-
+	
 	// Reload DS Firmware settings
 	boot_readFirmware(settingsOffset + 0x070, &settings1, 0x1);
 	boot_readFirmware(settingsOffset + 0x170, &settings2, 0x1);
-
+	
 	if ((settings1 & 0x7F) == ((settings2+1) & 0x7F)) {
 		boot_readFirmware(settingsOffset + 0x000, (u8*)0x02FFFC80, 0x70);
 	} else {
 		boot_readFirmware(settingsOffset + 0x100, (u8*)0x02FFFC80, 0x70);
 	}
-
-	((vu32*)0x040044f0)[2] = 0x202DDD1D;
-	((vu32*)0x040044f0)[3] = 0xE1A00005;
-	while((*(vu32*)0x04004400) & 0x2000000);
-
 }
 
-
-u32 ROM_TID;
 
 void loadBinary_ARM7 (u32 fileCluster) {
 	u32 ndsHeader[0x170>>2];
@@ -237,9 +234,7 @@ void loadBinary_ARM7 (u32 fileCluster) {
 	u32 ARM7_SRC = ndsHeader[0x030>>2];
 	char* ARM7_DST = (char*)ndsHeader[0x038>>2];
 	u32 ARM7_LEN = ndsHeader[0x03C>>2];
-
-	ROM_TID = ndsHeader[0x00C>>2];
-
+	
 	// Load binaries into memory
 	fileRead(ARM9_DST, fileCluster, ARM9_SRC, ARM9_LEN);
 	fileRead(ARM7_DST, fileCluster, ARM7_SRC, ARM7_LEN);
@@ -250,18 +245,22 @@ void loadBinary_ARM7 (u32 fileCluster) {
 	ndsHeader[0x024>>2] = 0;
 	dmaCopyWords(3, (void*)ndsHeader, (void*)NDS_HEAD, 0x170);
 
+#ifndef NTRMODE
 	if (dsiMode && (ndsHeader[0x10>>2]&BIT(16+1))) {
 		// Read full TWL header
 		fileRead((char*)TWL_HEAD, fileCluster, 0, 0x1000);
+
 		u32 ARM9i_SRC = *(u32*)(TWL_HEAD+0x1C0);
 		char* ARM9i_DST = (char*)*(u32*)(TWL_HEAD+0x1C8);
 		u32 ARM9i_LEN = *(u32*)(TWL_HEAD+0x1CC);
 		u32 ARM7i_SRC = *(u32*)(TWL_HEAD+0x1D0);
 		char* ARM7i_DST = (char*)*(u32*)(TWL_HEAD+0x1D8);
 		u32 ARM7i_LEN = *(u32*)(TWL_HEAD+0x1DC);
+
 		if (ARM9i_LEN)fileRead(ARM9i_DST, fileCluster, ARM9i_SRC, ARM9i_LEN);
 		if (ARM7i_LEN)fileRead(ARM7i_DST, fileCluster, ARM7i_SRC, ARM7i_LEN);
 	}
+#endif
 }
 
 /*-------------------------------------------------------------------------
@@ -271,74 +270,110 @@ Written by Darkain.
 Modified by Chishm:
  * Removed MultiNDS specific stuff
 --------------------------------------------------------------------------*/
-void startBinary_ARM7 (void) {
+void startBinary_ARM7 (void) {	
 	REG_IME=0;
 	while(REG_VCOUNT!=191);
 	while(REG_VCOUNT==191);
+	
 	// copy NDS ARM9 start address into the header, starting ARM9
 	*((vu32*)0x02FFFE24) = TEMP_ARM9_START_ADDRESS;
 	ARM9_START_FLAG = 1;
 	// Start ARM7
 	VoidFn arm7code = *(VoidFn*)(0x2FFFE34);
+
+#ifdef NTRMODE
+	if (REG_SCFG_EXT & BIT(31)) {
+		REG_SCFG_ROM = 0x703;
+		REG_SCFG_CLK = 0x187;
+		REG_SCFG_EXT = 0x92A40000;
+	}
+	dsiMode = false;
+	dsiSD = true;
+#endif
 	arm7code();
 }
+#ifndef NO_SDMMC
+int sdmmc_sd_readsectors(u32 sector_no, u32 numsectors, void *out);
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Main function
+bool sdmmc_inserted() {
+	return true;
+}
 
+bool sdmmc_startup() {
+	sdmmc_controller_init();
+	return sdmmc_sdcard_init() == 0;
+}
+
+bool sdmmc_readsectors(u32 sector_no, u32 numsectors, void *out) {
+	return sdmmc_sdcard_readsectors(sector_no, numsectors, out) == 0;
+}
+#endif
 void mpu_reset();
 void mpu_reset_end();
 
 int main (void) {
+
 #ifdef NO_DLDI
 	dsiSD = true;
 	dsiMode = true;
 #endif
+
 #ifndef NO_SDMMC
-	sdRead = (dsiSD && dsiMode);
+	if (dsiSD) {
+		_io_dldi.fn_readSectors = sdmmc_readsectors;
+		_io_dldi.fn_isInserted = sdmmc_inserted;
+		_io_dldi.fn_startup = sdmmc_startup;
+	}
 #endif
+
 	u32 fileCluster = storedFileCluster;
 	// Init card
-	if(!FAT_InitFiles(initDisc))return -1;	
-	/* Invalid file cluster specified */
-	if ((fileCluster < CLUSTER_FIRST) || (fileCluster >= CLUSTER_EOF))fileCluster = getBootFileCluster(bootName);
+	if(!FAT_InitFiles(initDisc))return -1;
+	if ((fileCluster < CLUSTER_FIRST) || (fileCluster >= CLUSTER_EOF))fileCluster = getBootFileCluster(bootName); /* Invalid file cluster specified */
 	if (fileCluster == CLUSTER_FREE)return -1;
+	
 	// ARM9 clears its memory part 2
 	// copy ARM9 function to RAM, and make the ARM9 jump to it
 	copyLoop((void*)TEMP_MEM, (void*)resetMemory2_ARM9, resetMemory2_ARM9_size);
 	(*(vu32*)0x02FFFE24) = (u32)TEMP_MEM;	// Make ARM9 jump to the function
 	// Wait until the ARM9 has completed its task
 	while ((*(vu32*)0x02FFFE24) == (u32)TEMP_MEM);
+
 	// ARM9 sets up mpu
 	// copy ARM9 function to RAM, and make the ARM9 jump to it
 	copyLoop((void*)TEMP_MEM, (void*)mpu_reset, mpu_reset_end - mpu_reset);
 	(*(vu32*)0x02FFFE24) = (u32)TEMP_MEM;	// Make ARM9 jump to the function
 	// Wait until the ARM9 has completed its task
 	while ((*(vu32*)0x02FFFE24) == (u32)TEMP_MEM);
+
 	// Get ARM7 to clear RAM
 	resetMemory_ARM7();
+
+#ifdef NTRMODE
+	initMBKArm7();
+	// Have arm9 setup Arm9 MBK registers
+	copyLoop((void*)TEMP_MEM, (void*)initMBK_ARM9, initMBK_ARM9_size);
+	(*(vu32*)0x02FFFE24) = (u32)TEMP_MEM;
+	while ((*(vu32*)0x02FFFE24) == (u32)TEMP_MEM);
+#endif
+
 	// ARM9 enters a wait loop
 	// copy ARM9 function to RAM, and make the ARM9 jump to it
 	copyLoop((void*)TEMP_MEM, (void*)startBinary_ARM9, startBinary_ARM9_size);
 	(*(vu32*)0x02FFFE24) = (u32)TEMP_MEM;	// Make ARM9 jump to the function
+
 	// Load the NDS file
 	loadBinary_ARM7(fileCluster);
-	sdRead = false;
-	// Fix for Pictochat and DLP
-	if (ROM_TID == 0x41444E48 || ROM_TID == 0x41454E48)(*(vu16*)0x02FFFCFA) = 0x1041;	// NoCash: channel ch1+7+13
+	
 #ifndef NO_DLDI
 	// Patch with DLDI if desired
 	if (wantToPatchDLDI)dldiPatchBinary ((u8*)((u32*)NDS_HEAD)[0x0A], ((u32*)NDS_HEAD)[0x0B]);
 #endif
-
-#ifndef NO_SDMMC
-	if (dsiSD && dsiMode) {
-		sdmmc_controller_init(true);
-		*(vu16*)(SDMMC_BASE + REG_SDDATACTL32) &= 0xFFFDu;
-		*(vu16*)(SDMMC_BASE + REG_SDDATACTL) &= 0xFFDDu;
-		*(vu16*)(SDMMC_BASE + REG_SDBLKLEN32) = 0;
-	}
-#endif
 	// Pass command line arguments to loaded program
 	passArgs_ARM7();
 	startBinary_ARM7();
+
 	return 0;
 }
 

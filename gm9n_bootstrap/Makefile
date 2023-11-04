@@ -1,6 +1,7 @@
 #---------------------------------------------------------------------------------
 .SUFFIXES:
 #---------------------------------------------------------------------------------
+.SECONDARY:
 
 ifeq ($(strip $(DEVKITARM)),)
 $(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
@@ -8,24 +9,12 @@ endif
 
 include $(DEVKITARM)/ds_rules
 
-# If on a tagged commit, use just tag
-ifneq ($(shell echo $(shell git tag -l --points-at HEAD) | head -c 1),)
-GIT_VER := $(shell git tag -l --points-at HEAD)
-else
-GIT_VER := $(shell git describe --abbrev=0 --tags)-$(shell git rev-parse --short=7 HEAD)
-endif
+export HBMENU_MAJOR	:= 1
+export HBMENU_MINOR	:= 1
+export HBMENU_PATCH	:= 0
 
-# Ensure version.h exists
-ifeq (,$(wildcard include/version.h))
-$(shell mkdir -p include)
-$(shell touch include/version.h)
-endif
 
-# Print new version if changed
-ifeq (,$(findstring $(GIT_VER), $(shell cat include/version.h)))
-$(shell printf "#ifndef VERSION_HPP\n#define VERSION_HPP\n\n#define VER_NUMBER \"$(GIT_VER)\"\n\n#endif\n" > include/version.h)
-endif
-
+VERSION	:=	$(HBMENU_MAJOR).$(HBMENU_MINOR).$(HBMENU_PATCH)
 #---------------------------------------------------------------------------------
 # TARGET is the name of the output
 # BUILD is the directory where object files & intermediate files will be placed
@@ -33,41 +22,41 @@ endif
 # INCLUDES is a list of directories containing extra header files
 # DATA is a list of directories containing binary files embedded using bin2o
 # GRAPHICS is a list of directories containing image files to be converted with grit
-# MAXMOD_SOUNDBANK contains a directory of music and sound effect files
 #---------------------------------------------------------------------------------
-TARGET		:=	GodMode9Nrio
+TARGET		:=	GM9N_Bootstrap
 BUILD		:=	build
-SOURCES		:=	source source/flashcard source/graphics dldi-include mbedtls
-INCLUDES	:=	include source source/flashcard source/graphics
-DATA		:=	../data
-GRAPHICS	:=  ../gfx
+SOURCES		:=	source
+INCLUDES	:=	include
+DATA		:=	data
+GRAPHICS	:=  gfx
 
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-mthumb-interwork
+ARCH	:=	-mthumb -mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Wno-psabi -O2 \
+CFLAGS	:=	-g -Wall -O2\
  		-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
 		-ffast-math \
 		$(ARCH)
-
-CFLAGS	+=	$(INCLUDE) -DARM9 -D_NO_BOOTSTUB_
-CXXFLAGS	:= $(CFLAGS) -fno-exceptions -std=gnu++17
+		
+CFLAGS	+=	$(INCLUDE) -DARM9
+CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-specs=../ds_arm9_hi.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
+LDFLAGS	=	-specs=ds_arm9.specs -g -Wl,--gc-sections $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project (order is important)
 #---------------------------------------------------------------------------------
-LIBS	:= 	-lfat -lnds329
+LIBS	:= 	-lfat -lnds9
+
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:=	$(CURDIR) ../ $(LIBNDS)
+LIBDIRS	:=	$(LIBNDS)
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
@@ -86,10 +75,9 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-BMPFILES	:=	$(foreach dir,$(GRAPHICS),$(notdir $(wildcard $(dir)/*.bmp)))
 PNGFILES	:=	$(foreach dir,$(GRAPHICS),$(notdir $(wildcard $(dir)/*.png)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
+BINFILES	:=	load.bin
 
 #---------------------------------------------------------------------------------
 # use CXX for linking C++ projects, CC for standard C
@@ -106,7 +94,6 @@ endif
 #---------------------------------------------------------------------------------
 
 export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
-					$(BMPFILES:.bmp=.o) \
 					$(PNGFILES:.png=.o) \
 					$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
@@ -116,61 +103,63 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
+icons := $(wildcard *.bmp)
 
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
+ifneq (,$(findstring $(TARGET).bmp,$(icons)))
+	export GAME_ICON := $(CURDIR)/$(TARGET).bmp
+else
+	ifneq (,$(findstring icon.bmp,$(icons)))
+		export GAME_ICON := $(CURDIR)/icon.bmp
+	endif
+endif
 
-.PHONY: $(BUILD) clean
+export GAME_TITLE := $(TARGET)
 
-all : $(BUILD)
+.PHONY: bootloader BootStrap clean
+
+all:	bootloader $(TARGET).nds
+
+$(TARGET).nds:	$(TARGET).arm7 $(TARGET).arm9
+	ndstool	-c $(TARGET).nds -7 $(TARGET).arm7.elf -9 $(TARGET).arm9.elf \
+			-b icon.bmp "GodMode9i - NRIO Edition;(bootstrap);Rocket Robz & Apache Thunder" \
+			-g HGMS 01 "GODMODE9NS" -z 80040000 -u 00030004 -a 00000138 -p 0000
+
+$(TARGET).arm7: arm7/$(TARGET).elf
+	cp arm7/$(TARGET).elf $(TARGET).arm7.elf
+
+$(TARGET).arm9: arm9/$(TARGET).elf
+	cp arm9/$(TARGET).elf $(TARGET).arm9.elf
 
 #---------------------------------------------------------------------------------
-$(BUILD):
-	@[ -d $@ ] || mkdir -p $@
-	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+arm7/$(TARGET).elf:
+	@$(MAKE) -C arm7
+	
+#---------------------------------------------------------------------------------
+arm9/$(TARGET).elf:
+	@$(MAKE) -C arm9
+
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds *.bin include/version.h
+	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds $(TARGET).arm9 $(TARGET).arm7.elf $(TARGET).arm9.elf data
+	@$(MAKE) -C bootloader clean
+	$(MAKE) -C arm9 clean
+	$(MAKE) -C arm7 clean
+		
+data:
+	@mkdir -p data
+
+bootloader: data
+	@$(MAKE) -C bootloader "EXTRA_CFLAGS= -DNO_DLDI -DNTRMODE"
 
 #---------------------------------------------------------------------------------
 else
-
-DEPENDS	:=	$(OFILES:.o=.d)
-
-#---------------------------------------------------------------------------------
-# main targets
-#---------------------------------------------------------------------------------
-$(OUTPUT).elf	:	$(OFILES)
 
 #---------------------------------------------------------------------------------
 %.bin.o	:	%.bin
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	$(bin2o)
-
-#---------------------------------------------------------------------------------
-%.frf.o	:	%.frf
-#---------------------------------------------------------------------------------
-	@echo $(notdir $<)
-	$(bin2o)
-
-#---------------------------------------------------------------------------------
-# This rule creates assembly source files using grit
-# grit takes an image file and a .grit describing how the file is to be processed
-# add additional rules like this for each image extension
-# you use in the graphics folders
-#---------------------------------------------------------------------------------
-%.s %.h	: %.bmp %.grit
-#---------------------------------------------------------------------------------
-	grit $< -fts -o$*
-
-#---------------------------------------------------------------------------------
-%.s %.h   : %.png %.grit
-#---------------------------------------------------------------------------------
-	grit $< -fts -o$*
-
--include $(DEPSDIR)/*.d
-
 #---------------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------------

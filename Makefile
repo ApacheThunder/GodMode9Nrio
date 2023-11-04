@@ -13,23 +13,12 @@ export TARGET := GodMode9Nrio
 
 export GAME_TITLE := $(TARGET)
 
-export NITRODATA := nitrofiles
-
 .PHONY: all bootloader bootstub clean dsi arm7/$(TARGET).elf arm9/$(TARGET).elf
 
 all:	bootloader bootstub $(TARGET).nds
 
-dsi:	$(TARGET).dsi
-
 $(TARGET).nds:	arm7/$(TARGET).elf arm9/$(TARGET).elf
-	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf -d $(NITRODATA) \
-			-b icon.bmp "GodMode9i (NRIO Edition);Rocket Robz;Apache Thunder" \
-			-g HGMN 01 "GODMODE9N" -z 80040000 -u 00030004 -a 00000138 -p 0000
-	$(_ADDFILES)
-	@dlditool nrio.dldi $@
-
-$(TARGET).dsi:	arm7/$(TARGET).elf arm9/$(TARGET).elf
-	ndstool	-c $(TARGET).dsi -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf -d $(NITRODATA) \
+	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf \
 			-b icon.bmp "GodMode9i (NRIO Edition);Rocket Robz;Apache Thunder" \
 			-g HGMN 01 "GODMODE9N" -z 80040000 -u 00030004 -a 00000138 -p 0000
 	$(_ADDFILES)

@@ -16,7 +16,15 @@
 	</a>
 </p>
 
-GodMode9i is a full access file browser for the Nintendo DS, Nintendo DSi and the Nintendo 3DS's TWL_FIRM.
+GodMode9Nrio is a full access file browser for the Nintendo DS, Nintendo DSi and the Nintendo 3DS's TWL_FIRM but this version is focused towards NAND based flashcarts like N-Card and it's clones.
+GM9N_Bootstrap is included as an option for booting GodMode9Nrio in the event boot reliability is bad for you. The INI file for this bootstrap can be used to define a custom path to the GM9N NDS file. It is expected for this INI file to be in _nds folder.
+If the INI file is not present the default boot path for G9MN will be in the NDS folder.
+
+## Features Removed for compatiblity
+Please note that some features were removed to make this functional for NTR mode switch currently required to make NRIO DLDI work properly.
+That includes the removal of NitroFS data files from main GM9 SRL and the ability to mount the NitroFS of GM9N.
+You can boot uDisk from NRIO cards and run Xmenu with this but it is not recommended as you may get save related errors when trying to boot things with xmenu.
+TWL NAND and Ramdisk mounting has also been removed. The cart dumping features may also not operate correctly. Please use normal build of GM9i for those features. 
 
 <div align="center">
 	<img src="https://github.com/DS-Homebrew/GodMode9i/raw/master/resources/screenshots/drive-menu.png" alt="Drive menu">
@@ -35,7 +43,7 @@ GodMode9i is a full access file browser for the Nintendo DS, Nintendo DSi and th
 - Mount the NitroFS of NDS files, DSiWare saves, and FAT images.
 - View and edit the contents of files with a hex editor.
 - Calculate the SHA-1 hash of files on Nintendo DSi and Nintendo 3DS consoles.
-- Browse files on supported flashcards when running GM9i from the NAND or SD Card. (`AceKard 2(i)` & `R4 Ultra (r4ultra.com)`)
+- Browse files on supported flashcards when running GM9i from the NAND or SD Card. (`N-Card and it's clones`)
 - Browse files on the internal NAND of Nintendo DSi consoles.
 - Browse files on the SD Card when running GM9i from any DS-mode flashcard. (Requires **TW**i**L**ight Menu++ with Slot-1 SD/SCFG access enabled, and TWLMenu++ installed on the flashcard.)
 - Translated to many different languages. Join the [Crowdin project](https://crowdin.com/project/godmode9i) to contribute more!

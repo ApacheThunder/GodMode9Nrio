@@ -82,6 +82,7 @@ int main(int argc, char **argv) {
 //---------------------------------------------------------------------------------
 	if (forceNTRMode && (REG_SCFG_EXT & BIT(31))) {
 		__dsimode = false;
+		int i;
 		// MBK settings for NTR mode games
 		*((vu32*)REG_MBK1)=0x8D898581;
 		*((vu32*)REG_MBK2)=0x91898581;
@@ -91,8 +92,12 @@ int main(int argc, char **argv) {
 		REG_MBK6 = 0x00003000;
 		REG_MBK7 = 0x00003000;
 		REG_MBK8 = 0x00003000;
-		REG_SCFG_EXT=0x83000000;
+		// REG_SCFG_EXT=0x83000000;
+		REG_SCFG_EXT &= ~(1UL << 14);
+		REG_SCFG_EXT &= ~(1UL << 15);
+		for (i = 0; i < 30; i++) { while(REG_VCOUNT!=191); while(REG_VCOUNT==191); }
 		fifoWaitValue32(FIFO_USER_06);
+		for (i = 0; i < 30; i++) { while(REG_VCOUNT!=191); while(REG_VCOUNT==191); }
 		// REG_SCFG_EXT &= ~(1UL << 31);
 	}
 	
@@ -107,7 +112,7 @@ int main(int argc, char **argv) {
 	bool yHeld = false;
 
 	// sprintf(titleName, "GodMode9i %s", VER_NUMBER);
-	sprintf(titleName, "GodMode9Nrio %s", "v3.4.2-NRIO");
+	sprintf(titleName, "GodMode9Nrio %s", "v3.4.3-NRIO");
 
 	// initialize video mode
 	videoSetMode(MODE_5_2D);
@@ -137,7 +142,7 @@ int main(int argc, char **argv) {
 	fifoWaitValue32(FIFO_USER_06);
 	if (fifoGetValue32(FIFO_USER_03) == 0) arm7SCFGLocked = true;
 	u16 arm7_SNDEXCNT = fifoGetValue32(FIFO_USER_07);
-	if (arm7_SNDEXCNT != 0) isRegularDS = false;	// If sound frequency setting is found, then the console is not a DS Phat/Lite
+	if (arm7_SNDEXCNT != 0)isRegularDS = false;	// If sound frequency setting is found, then the console is not a DS Phat/Lite
 	fifoSendValue32(FIFO_USER_07, 0);
 
 	if (isDSiMode()) {
@@ -148,9 +153,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	// Display for 2 seconds
 	font->update(false);
-	// for (int i = 0; i < 60*2; i++) { swiWaitForVBlank(); }
 	for (int i = 0; i < 60; i++) { swiWaitForVBlank(); }
 
 	font->clear(false);
@@ -165,108 +168,13 @@ int main(int argc, char **argv) {
 	fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
 	if (!sdRemoved)sdMounted = sdMount();
 	
-	/*if (isDSiMode()) {
-		scanKeys();
-		yHeld = (keysHeld() & KEY_Y);
-		*(vu32*)(0x0DFFFE0C) = 0x474D3969;		// Check for 32MB of RAM
-		bool ram32MB = *(vu32*)(0x0DFFFE0C) == 0x474D3969;
-		ramdriveMount(ram32MB);
-		if (ram32MB) {
-			is3DS = fifoGetValue32(FIFO_USER_05) != 0xD2;
-		}
-		nandMount();
-	} else if (REG_SCFG_EXT != 0) {
-		*(vu32*)(0x0DFFFE0C) = 0x474D3969;		// Check for 32MB of RAM
-		bool ram32MB = *(vu32*)(0x0DFFFE0C) == 0x474D3969;
-		ramdriveMount(ram32MB);
-		if (ram32MB) {
-			is3DS = fifoGetValue32(FIFO_USER_05) != 0xD2;
-		}
-
-		FILE* bios = fopen("sd:/_nds/bios9i.bin", "rb");
-		if (!bios) {
-			bios = fopen("sd:/_nds/bios9i_part1.bin", "rb");
-		}
-		if (bios) {
-			tonccpy((u32*)0x02008000, (u32*)0x02000000, 0x4000);
-
-			extern u8* copyBuf;
-			copyBuf = new u8[0x8000];
-
-			fread((u32*)0x02000000, 1, 0x8000, bios);
-			fclose(bios);
-
-			// Relocate addresses
-			*(u32*)0x020000CC -= 0xFFFF0000;
-			*(u32*)0x02003264 -= 0xFFFF0000;
-			*(u32*)0x02003268 -= 0xFFFF0000;
-			*(u32*)0x0200326C -= 0xFFFF0000;
-			*(u32*)0x020033E0 -= 0xFFFF0000;
-			*(u32*)0x020042C0 -= 0xFFFF0000;
-			*(u32*)0x02004B88 -= 0xFFFF0000;
-			*(u32*)0x02004B90 -= 0xFFFF0000;
-			*(u32*)0x02004B9C -= 0xFFFF0000;
-			*(u32*)0x02004BA0 -= 0xFFFF0000;
-			*(u32*)0x02004E1C -= 0xFFFF0000;
-			*(u32*)0x02004F18 -= 0xFFFF0000;
-
-			*(u32*)0x020000CC += 0x02000000;
-			*(u32*)0x02003264 += 0x02000000;
-			*(u32*)0x02003268 += 0x02000000;
-			*(u32*)0x0200326C += 0x02000000;
-			*(u32*)0x020033E0 += 0x02000000;
-			*(u32*)0x020042C0 += 0x02000000;
-			*(u32*)0x02004B88 += 0x02000000;
-			*(u32*)0x02004B90 += 0x02000000;
-			*(u32*)0x02004B9C += 0x02000000;
-			*(u32*)0x02004BA0 += 0x02000000;
-			*(u32*)0x02004E1C += 0x02000000;
-			*(u32*)0x02004F18 += 0x02000000;
-
-			u32* itcmAddr = (u32*)0x01000000;
-			for (int i = 0; i < 8; i++) {
-				itcmAddr[i] = 0xEA7FFFFE;
-			}
-
-			setVectorBase(0);
-			bios9iEnabled = true;
-
-			nandMount(); // Returns corrupt data for some reason
-		}
-	} else if (isRegularDS && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS)) {
-		ramdriveMount(false);
-	}*/
 	if (!isDSiMode() || !yHeld) {
 		flashcardMounted = flashcardMount();
 		flashcardMountSkipped = false;
 	}
 
-	// Try to init NitroFS
 	nitroMounted = false;
-	/*char nandPath[64] = {0};
-	char sdnandPath[64] = {0};
-	if(isDSiMode()) {
-		sprintf(nandPath, "nand:/title/%08x/%08x/content/000000%02x.app", *(unsigned int*)0x02FFE234, *(unsigned int*)0x02FFE230, *(u8*)0x02FFE01E);
-		sprintf(sdnandPath, "sd:/title/%08x/%08x/content/000000%02x.app", *(unsigned int*)0x02FFE234, *(unsigned int*)0x02FFE230, *(u8*)0x02FFE01E);
-	}
-	ownNitroFSMounted = 0;
-	nitroMounted = true;
-	if (argc > 0 && nitroFSInit(argv[0])) nitroCurrentDrive = argv[0][0] == 's' ? Drive::sdCard : Drive::flashcard;
-	else if (nandPath[0] && nitroFSInit(nandPath)) nitroCurrentDrive = Drive::nand;
-	else if (sdnandPath[0] && nitroFSInit(sdnandPath)) nitroCurrentDrive = Drive::sdCard;
-	else if (nitroFSInit("sd:/GodMode9i.nds")) nitroCurrentDrive = Drive::sdCard;
-	else if (nitroFSInit("sd:/GodMode9i.dsi")) nitroCurrentDrive = Drive::sdCard;
-	else if (nitroFSInit("fat:/GodMode9i.nds")) nitroCurrentDrive = Drive::flashcard;
-	else if (nitroFSInit("fat:/GodMode9i.dsi")) nitroCurrentDrive = Drive::flashcard;
-	else {
-		ownNitroFSMounted = 1;
-		nitroMounted = false;
-		font->print(-2, -3, false, "NitroFS init failed...", Alignment::right);
-		font->update(false);
-		for (int i = 0; i < 30; i++)
-			swiWaitForVBlank();
-	}*/
-
+	
 	// Ensure gm9i folder exists
 	char folderPath[10];
 	sprintf(folderPath, "%s:/gm9i", (sdMounted ? "sd" : "fat"));
@@ -383,3 +291,4 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
+

@@ -10,7 +10,6 @@
 #include <sys/statvfs.h>
 
 #include "main.h"
-#include "dldi-include.h"
 #include "lzss.h"
 #include "ramd.h"
 #include "my_sd.h"
@@ -28,14 +27,11 @@
 
 
 #define NDS_HEADER 0x027FFE00
-static tNDSHeader* cartNds;
-static sNDSHeaderExt* cartNdsExt;
+ALIGN(4) static tNDSHeader* cartNds;
+ALIGN(4) static sNDSHeaderExt* cartNdsExt;
 u32 chipID;
 
-static sNDSHeader nds;
-
 static bool nrioMode = true;
-static bool slot1Enabled = true;
 
 bool nandMounted = false;
 bool photoMounted = false;
@@ -205,49 +201,6 @@ void sdUnmount(void) {
 	sdMounted = false;
 }
 
-DLDI_INTERFACE* dldiLoadFromBin (const u8 dldiAddr[]) {
-	// Check that it is a valid DLDI
-	if (!dldiIsValid ((DLDI_INTERFACE*)dldiAddr)) {
-		return NULL;
-	}
-
-	DLDI_INTERFACE* device = (DLDI_INTERFACE*)dldiAddr;
-	size_t dldiSize;
-
-	// Calculate actual size of DLDI
-	// Although the file may only go to the dldiEnd, the BSS section can extend past that
-	if (device->dldiEnd > device->bssEnd) {
-		dldiSize = (char*)device->dldiEnd - (char*)device->dldiStart;
-	} else {
-		dldiSize = (char*)device->bssEnd - (char*)device->dldiStart;
-	}
-	dldiSize = (dldiSize + 0x03) & ~0x03; 		// Round up to nearest integer multiple
-	
-	// Clear unused space
-	toncset(device+dldiSize, 0, 0x4000-dldiSize);
-
-	dldiFixDriverAddresses (device);
-
-	if (device->ioInterface.features & FEATURE_SLOT_GBA) {
-		sysSetCartOwner(BUS_OWNER_ARM9);
-	}
-	if (device->ioInterface.features & FEATURE_SLOT_NDS) {
-		sysSetCardOwner(BUS_OWNER_ARM9);
-	}
-	
-	return device;
-}
-
-bool UpdateCardInfo(char* gameid, char* gamename) {
-	cardReadHeader((uint8*)0x02000000);
-	tonccpy(&nds, (void*)0x02000000, sizeof(sNDSHeader));
-	tonccpy(gameid, &nds.gameCode, 4);
-	gameid[4] = 0x00;
-	tonccpy(gamename, &nds.gameTitle, 12);
-	gamename[12] = 0x00;
-	return true;
-}
-
 const DISC_INTERFACE *dldiGet(void) {
 	if(io_dldi_data->ioInterface.features & FEATURE_SLOT_GBA)
 		sysSetCartOwner(BUS_OWNER_ARM9);
@@ -257,100 +210,47 @@ const DISC_INTERFACE *dldiGet(void) {
 	return &io_dldi_data->ioInterface;
 }
 
-bool twl_flashcardMount(void) {
-	if (REG_SCFG_MC != 0x11) {
-		sysSetCardOwner (BUS_OWNER_ARM9);
-
-		// Reset Slot-1 to allow reading title name and ID
-		if (slot1Enabled) {
-			disableSlot1();
-			for(int i = 0; i < 25; i++) { swiWaitForVBlank(); }
-			slot1Enabled = false;
-		}
-		if (appInited) {
-			for(int i = 0; i < 35; i++) { swiWaitForVBlank(); }	// Make sure cart is inserted correctly
-		}
-		if (REG_SCFG_MC == 0x11) {
-			sysSetCardOwner (BUS_OWNER_ARM7);
-			return false;
-		}
-		if (!slot1Enabled) {
-			enableSlot1();
-			for(int i = 0; i < 15; i++) { swiWaitForVBlank(); }
-			slot1Enabled = true;
-		}
-
-		nds.gameCode[0] = 0;
-		nds.gameTitle[0] = 0;
-		char gamename[13];
-		char gameid[5];
-
-		UpdateCardInfo(&gameid[0], &gamename[0]);
-
-		sysSetCardOwner (BUS_OWNER_ARM7);	// 3DS fix
-
-		if (gameid[0] >= 0x00 && gameid[0] < 0x20) {
-			return false;
-		}
-
-		// Read a DLDI driver specific to the cart
-		if (!memcmp(gamename, "QMATETRIAL", 9) || !memcmp(gamename, "R4DSULTRA", 9)) {
-			io_dldi_data = dldiLoadFromBin(r4idsn_sd_dldi);
-			fatMountSimple("fat", dldiGet());
-		} else if (!memcmp(gameid, "ACEK", 4) || !memcmp(gameid, "YCEP", 4) || !memcmp(gameid, "AHZH", 4) || !memcmp(gameid, "CHPJ", 4) || !memcmp(gameid, "ADLP", 4)) {
-			io_dldi_data = dldiLoadFromBin(ak2_sd_dldi);
-			fatMountSimple("fat", dldiGet());
-		} else if (!memcmp(gameid, "ALXX", 4)) {
-			io_dldi_data = dldiLoadFromBin(scds2_sd_dldi);
-			fatMountSimple("fat", dldiGet());
-		}
-		
-		if (flashcardFound()) {
-			fatGetVolumeLabel("fat", fatLabel);
-			fixLabel(fatLabel);
-			struct statvfs st;
-			if (statvfs("fat:/", &st) == 0) {
-				fatSize = st.f_bsize * st.f_blocks;
-			}
-			return true;
-		}
-	}
-	return false;
-}
-
 static void NRIOMount() {
 	cartNds = (tNDSHeader*)NDS_HEADER;
 	cardInit(cartNdsExt);
 	chipID = cardGetId();
+	
+	// ALIGN(4) tDSiHeader* twlHeaderTemp = (tDSiHeader*)TMP_HEADER;
+	// cartNds = (tNDSHeader*)NDS_HEADER;
+	for(int i = 0; i < 25; i++) { swiWaitForVBlank(); }
+	// cartNds = loadHeader(twlHeaderTemp); // copy twlHeaderTemp to ndsHeader location
+	
+	tonccpy((void*)NDS_HEADER, (u32*)cartNdsExt, 0x160);
+	// tonccpy((void*)TWL_HEADER, (u32*)cartNdsExt, 0x160);
+	
+    // Set memory values expected by loaded NDS
+    // from NitroHax, thanks to Chism
+	*((u32*)0x027ff800) = chipID;					// CurrentCardID
+	*((u32*)0x027ff804) = chipID;					// Command10CardID
+	*((u16*)0x027ff808) = cartNds->headerCRC16;	// Header Checksum, CRC-16 of [000h-15Dh]
+	*((u16*)0x027ff80a) = cartNds->secureCRC16;	// Secure Area Checksum, CRC-16 of [ [20h]..7FFFh]			
+	*((u16*)0x027ff850) = 0x5835;
+	
+	*((u32*)0x027ffc00) = chipID;					// CurrentCardID
+	*((u32*)0x027ffc04) = chipID;					// Command10CardID
+	*((u16*)0x027ffc08) = cartNds->headerCRC16;	// Header Checksum, CRC-16 of [000h-15Dh]
+	*((u16*)0x027ffc0a) = cartNds->secureCRC16;	// Secure Area Checksum, CRC-16 of [ [20h]..7FFFh]
+	*((u16*)0x027ffc10) = 0x5835;
+	*((u16*)0x027ffc40) = 0x1;						// Boot Indicator (Booted from card for SDK5) -- EXTREMELY IMPORTANT!!! Thanks to cReDiAr
+	
+	// tonccpy((void*)0x023FF000, (void*)0x027FF000, 0x1000);
+	
 }
 
 bool flashcardMount(void) {
-	if (nrioMode) {
-		NRIOMount();
-		fatInitDefault();
-		if (flashcardFound()) {
-			fatGetVolumeLabel("fat", fatLabel);
-			fixLabel(fatLabel);
-			struct statvfs st;
-			if (statvfs("fat:/", &st) == 0)fatSize = st.f_bsize * st.f_blocks;
-			return true;
-		}
-	} else {
-		if (!isDSiMode() || (arm7SCFGLocked && !sdMountedDone)) {
-			fatInitDefault();
-			if (flashcardFound()) {
-				fatGetVolumeLabel("fat", fatLabel);
-				fixLabel(fatLabel);
-				struct statvfs st;
-				if (statvfs("fat:/", &st) == 0) {
-					fatSize = st.f_bsize * st.f_blocks;
-				}
-				return true;
-			}
-			return false;
-		} else {
-			return twl_flashcardMount();
-		}
+	if (nrioMode)NRIOMount();
+	fatInitDefault();
+	if (flashcardFound()) {
+		fatGetVolumeLabel("fat", fatLabel);
+		fixLabel(fatLabel);
+		struct statvfs st;
+		if (statvfs("fat:/", &st) == 0)fatSize = st.f_bsize * st.f_blocks;
+		return true;
 	}
 	return false;
 }

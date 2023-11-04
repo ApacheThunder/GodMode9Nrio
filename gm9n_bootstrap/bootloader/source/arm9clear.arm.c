@@ -20,8 +20,7 @@ Written by Darkain.
 Modified by Chishm:
  * Changed MultiNDS specific stuff
 --------------------------------------------------------------------------*/
-void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)) resetMemory2_ARM9 (void) 
-{
+void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)) resetMemory2_ARM9 (void) {
  	register int i;
   
 	//clear out ARM9 DMA channels
@@ -35,8 +34,8 @@ void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)
 
 	VRAM_CR = (VRAM_CR & 0xffff0000) | 0x00008080 ;
 	
-	vu16 *mainregs = (vu16*)0x04000000;
-	vu16 *subregs = (vu16*)0x04001000;
+	u16 *mainregs = (u16*)0x04000000;
+	u16 *subregs = (u16*)0x04001000;
 	
 	for (i=0; i<43; i++) {
 		mainregs[i] = 0;
@@ -59,7 +58,7 @@ void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)
 
 	//set shared ram to ARM7
 	WRAM_CR = 0x03;
-
+	
 	// Return to passme loop
 	*((vu32*)0x02FFFE04) = (u32)0xE59FF018;		// ldr pc, 0x02FFFE24
 	*((vu32*)0x02FFFE24) = (u32)0x02FFFE04;		// Set ARM9 Loop address
@@ -71,6 +70,33 @@ void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)
 	while(1);
 }
 
+
+#ifdef NTRMODE
+void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)) initMBK_ARM9(void) {
+	// Standard NTR Mode MBK setup
+	*((vu32*)REG_MBK1)=0x8D898581;
+	*((vu32*)REG_MBK2)=0x91898581;
+	*((vu32*)REG_MBK3)=0x91999591;
+	*((vu32*)REG_MBK4)=0x91898581;
+	*((vu32*)REG_MBK5)=0x91999591;
+
+	REG_MBK6=0x00003000;
+	REG_MBK7=0x00003000;
+	REG_MBK8=0x00003000;
+
+	// Return to passme loop
+	*((vu32*)0x02FFFE04) = (u32)0xE59FF018;		// ldr pc, 0x02FFFE24
+	*((vu32*)0x02FFFE24) = (u32)0x02FFFE04;		// Set ARM9 Loop address
+
+	asm volatile(
+		"\tbx %0\n"
+		: : "r" (0x02FFFE04)
+	);
+	while(1);
+}
+#endif
+
+
 /*-------------------------------------------------------------------------
 startBinary_ARM9
 Jumps to the ARM9 NDS binary in sync with the display and ARM7
@@ -78,7 +104,8 @@ Written by Darkain.
 Modified by Chishm:
  * Removed MultiNDS specific stuff
 --------------------------------------------------------------------------*/
-void __attribute__ ((long_call)) __attribute__((noreturn)) __attribute__((naked)) startBinary_ARM9 (void) {
+void __attribute__ ((long_call)) __attribute__((noreturn)) __attribute__((naked)) startBinary_ARM9 (void)
+{
 	REG_IME=0;
 	REG_EXMEMCNT = 0xE880;
 	// set ARM9 load address to 0 and wait for it to change again
@@ -87,6 +114,11 @@ void __attribute__ ((long_call)) __attribute__((noreturn)) __attribute__((naked)
 	while(REG_VCOUNT==191);
 	while ( ARM9_START_FLAG != 1 );
 	VoidFn arm9code = *(VoidFn*)(0x2FFFE24);
+
+#ifdef NTRMODE
+	// REG_SCFG_CLK = 0x80;
+	REG_SCFG_EXT = 0x83000000;
+#endif
 	arm9code();
 	while(1);
 }
