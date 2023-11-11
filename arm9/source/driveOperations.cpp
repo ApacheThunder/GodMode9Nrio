@@ -11,18 +11,11 @@
 
 #include "main.h"
 #include "lzss.h"
-#include "ramd.h"
 #include "my_sd.h"
-#include "nandio.h"
 #include "imgio.h"
 #include "tonccpy.h"
 #include "language.h"
-#include "sector0.h"
 
-#include "io_m3_common.h"
-#include "io_g6_common.h"
-#include "io_sc_common.h"
-#include "exptools.h"
 #include "read_card.h"
 
 
@@ -50,12 +43,10 @@ char sdLabel[12];
 char fatLabel[12];
 char imgLabel[12];
 
-u32 nandSize = 0;
 u32 photoSize = 0;
 u64 sdSize = 0;
 u64 fatSize = 0;
 u64 imgSize = 0;
-u32 ramdSize = 0;
 
 const char* getDrivePath(void) {
 	switch (currentDrive) {
@@ -63,12 +54,6 @@ const char* getDrivePath(void) {
 			return "sd:/";
 		case Drive::flashcard:
 			return "fat:/";
-		case Drive::ramDrive:
-			return "ram:/";
-		case Drive::nand:
-			return "nand:/";
-		case Drive::nandPhoto:
-			return "photo:/";
 		case Drive::nitroFS:
 			return "nitro:/";
 		case Drive::fatImg:
@@ -82,18 +67,11 @@ Drive getDriveFromPath(const char *path) {
 		return Drive::sdCard;
 	} else if(strncmp(path, "fat:", 4) == 0) {
 		return Drive::flashcard;
-	} else if(strncmp(path, "ram:", 4)) {
-		return Drive::ramDrive;
-	} else if(strncmp(path, "nand:", 5)) {
-		return Drive::nand;
-	} else if(strncmp(path, "photo:", 6)) {
-		return Drive::nandPhoto;
 	} else if(strncmp(path, "nitro:", 6)) {
 		return Drive::nitroFS;
 	} else if(strncmp(path, "img:", 4)) {
 		return Drive::fatImg;
 	}
-
 	return currentDrive;
 }
 
@@ -104,10 +82,6 @@ void fixLabel(char* label) {
 			break;
 		}
 	}
-}
-
-bool nandFound(void) {
-	return (access("nand:/", F_OK) == 0);
 }
 
 bool photoFound(void) {
@@ -132,39 +106,6 @@ bool bothSDandFlashcard(void) {
 
 bool imgFound(void) {
 	return (access("img:/", F_OK) == 0);
-}
-
-bool nandMount(void) {
-	fatMountSimple("nand", &io_dsi_nand);
-	if (nandFound()) {
-		struct statvfs st;
-		if (statvfs("nand:/", &st) == 0) {
-			nandSize = st.f_bsize * st.f_blocks;
-			nandMounted = true;
-		}
-
-		// Photo partition
-		/* mbr_t mbr;
-		io_dsi_nand.readSectors(0, 1, &mbr);
-		fatMount("photo", &io_dsi_nand, mbr.partitions[1].offset, 16, 8);
-
-		if (photoFound() && statvfs("photo:/", &st) == 0) {
-			photoSize = st.f_bsize * st.f_blocks;
-			photoMounted = true;
-		} */
-	}
-
-
-	return nandMounted /*&& photoMounted*/;
-}
-
-void nandUnmount(void) {
-	if(nandMounted)
-		fatUnmount("nand");
-	if(photoMounted)
-		fatUnmount("photo");
-	nandSize = 0;
-	nandMounted = false;
 }
 
 bool sdMount(void) {
@@ -199,6 +140,39 @@ void sdUnmount(void) {
 	sdLabel[0] = '\0';
 	sdSize = 0;
 	sdMounted = false;
+}
+
+DLDI_INTERFACE* dldiLoadFromBin (const u8 dldiAddr[]) {
+	// Check that it is a valid DLDI
+	if (!dldiIsValid ((DLDI_INTERFACE*)dldiAddr)) {
+		return NULL;
+	}
+
+	DLDI_INTERFACE* device = (DLDI_INTERFACE*)dldiAddr;
+	size_t dldiSize;
+
+	// Calculate actual size of DLDI
+	// Although the file may only go to the dldiEnd, the BSS section can extend past that
+	if (device->dldiEnd > device->bssEnd) {
+		dldiSize = (char*)device->dldiEnd - (char*)device->dldiStart;
+	} else {
+		dldiSize = (char*)device->bssEnd - (char*)device->dldiStart;
+	}
+	dldiSize = (dldiSize + 0x03) & ~0x03; 		// Round up to nearest integer multiple
+	
+	// Clear unused space
+	toncset(device+dldiSize, 0, 0x4000-dldiSize);
+
+	dldiFixDriverAddresses (device);
+
+	if (device->ioInterface.features & FEATURE_SLOT_GBA) {
+		sysSetCartOwner(BUS_OWNER_ARM9);
+	}
+	if (device->ioInterface.features & FEATURE_SLOT_NDS) {
+		sysSetCardOwner(BUS_OWNER_ARM9);
+	}
+	
+	return device;
 }
 
 const DISC_INTERFACE *dldiGet(void) {
@@ -267,87 +241,8 @@ void flashcardUnmount(void) {
 	flashcardMounted = false;
 }
 
-void ramdriveMount(bool ram32MB) {
-	if(isDSiMode() || REG_SCFG_EXT != 0) {
-		ramdSectors = ram32MB ? 0xE000 : 0x6000;
-
-		fatMountSimple("ram", &io_ram_drive);
-	} else if (isRegularDS) {
-		ramdSectors = 0x8 + 0x4000;
-		ramdLocMep = (u8*)0x09000000;
-
-		if (*(u16*)(0x020000C0) != 0x334D && *(u16*)(0x020000C0) != 0x3647 && *(u16*)(0x020000C0) != 0x4353 && *(u16*)(0x020000C0) != 0x5A45) {
-			*(u16*)(0x020000C0) = 0;	// Clear Slot-2 flashcard flag
-		}
-
-		if (*(u16*)(0x020000C0) == 0) {
-			*(vu16*)(0x08000000) = 0x4D54;	// Write test
-			if (*(vu16*)(0x08000000) != 0x4D54) {	// If not writeable
-				_M3_changeMode(M3_MODE_RAM);	// Try again with M3
-				*(u16*)(0x020000C0) = 0x334D;
-				*(vu16*)(0x08000000) = 0x4D54;
-			}
-			if (*(vu16*)(0x08000000) != 0x4D54) {
-				_G6_SelectOperation(G6_MODE_RAM);	// Try again with G6
-				*(u16*)(0x020000C0) = 0x3647;
-				*(vu16*)(0x08000000) = 0x4D54;
-			}
-			if (*(vu16*)(0x08000000) != 0x4D54) {
-				_SC_changeMode(SC_MODE_RAM);	// Try again with SuperCard
-				*(u16*)(0x020000C0) = 0x4353;
-				*(vu16*)(0x08000000) = 0x4D54;
-			}
-			if (*(vu16*)(0x08000000) != 0x4D54) {
-				cExpansion::SetRompage(381);	// Try again with EZ Flash
-				cExpansion::OpenNorWrite();
-				cExpansion::SetSerialMode();
-				*(u16*)(0x020000C0) = 0x5A45;
-				*(vu16*)(0x08000000) = 0x4D54;
-			}
-			if (*(vu16*)(0x08000000) != 0x4D54) {
-				*(u16*)(0x020000C0) = 0;
-				*(vu16*)(0x08240000) = 1; // Try again with Nintendo Memory Expansion Pak
-			}
-		}
-
-		if (*(u16*)(0x020000C0) == 0x334D || *(u16*)(0x020000C0) == 0x3647 || *(u16*)(0x020000C0) == 0x4353) {
-			ramdLocMep = (u8*)0x08000000;
-			ramdSectors = 0x8 + 0x10000;
-		} else if (*(u16*)(0x020000C0) == 0x5A45) {
-			ramdLocMep = (u8*)0x08000000;
-			ramdSectors = 0x8 + 0x8000;
-		}
-
-		if (*(u16*)(0x020000C0) != 0 || *(vu16*)(0x08240000) == 1) {
-			fatMountSimple("ram", &io_ram_drive);
-		}
-	}
-
-	ramdriveMounted = (access("ram:/", F_OK) == 0);
-
-	if (ramdriveMounted) {
-		struct statvfs st;
-		if (statvfs("ram:/", &st) == 0) {
-			ramdSize = st.f_bsize * st.f_blocks;
-		}
-	}
-}
-
-void ramdriveUnmount(void) {
-	if(imgMounted && imgCurrentDrive == Drive::ramDrive)
-		imgUnmount();
-	if(nitroMounted && nitroCurrentDrive == Drive::ramDrive)
-		nitroUnmount();
-
-	fatUnmount("ram");
-	ramdSize = 0;
-	ramdriveMounted = false;
-}
-
 void nitroUnmount(void) {
-	if(imgMounted && imgCurrentDrive == Drive::nitroFS)
-		imgUnmount();
-
+	if(imgMounted && imgCurrentDrive == Drive::nitroFS)imgUnmount();
 	ownNitroFSMounted = 2;
 	nitroMounted = false;
 }
@@ -361,9 +256,7 @@ bool imgMount(const char* imgName, bool dsiwareSave) {
 		fatGetVolumeLabel("img", imgLabel);
 		fixLabel(imgLabel);
 		struct statvfs st;
-		if (statvfs("img:/", &st) == 0) {
-			imgSize = st.f_bsize * st.f_blocks;
-		}
+		if (statvfs("img:/", &st) == 0)imgSize = st.f_bsize * st.f_blocks;
 		return true;
 	}
 	return false;
@@ -386,11 +279,6 @@ bool driveWritable(Drive drive) {
 			return __my_io_dsisd()->features & FEATURE_MEDIUM_CANWRITE;
 		case Drive::flashcard:
 			return dldiGet()->features & FEATURE_MEDIUM_CANWRITE;
-		case Drive::ramDrive:
-			return io_ram_drive.features & FEATURE_MEDIUM_CANWRITE;
-		case Drive::nand:
-		case Drive::nandPhoto:
-			return io_dsi_nand.features & FEATURE_MEDIUM_CANWRITE;
 		case Drive::nitroFS:
 			return false;
 		case Drive::fatImg:
@@ -406,12 +294,6 @@ bool driveRemoved(Drive drive) {
 			return sdRemoved;
 		case Drive::flashcard:
 			return isDSiMode() ? REG_SCFG_MC & BIT(0) : !flashcardMounted;
-		case Drive::ramDrive:
-			return (isDSiMode() || REG_SCFG_EXT != 0) ? !ramdriveMounted : !(*(u16*)(0x020000C0) != 0 || *(vu16*)(0x08240000) == 1);
-		case Drive::nand:
-			return !nandMounted;
-		case Drive::nandPhoto:
-			return !photoMounted;
 		case Drive::nitroFS:
 			return driveRemoved(nitroCurrentDrive);
 		case Drive::fatImg:
@@ -427,12 +309,6 @@ u64 driveSizeFree(Drive drive) {
 			return getBytesFree("sd:/");
 		case Drive::flashcard:
 			return getBytesFree("fat:/");
-		case Drive::ramDrive:
-			return getBytesFree("ram:/");
-		case Drive::nand:
-			return getBytesFree("nand:/");
-		case Drive::nandPhoto:
-			return getBytesFree("photo:/");
 		case Drive::nitroFS:
 			return 0;
 		case Drive::fatImg:

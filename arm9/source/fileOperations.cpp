@@ -15,25 +15,25 @@
 #define copyBufSize 0x8000
 #define shaChunkSize 0x10000
 
-u8* copyBuf = (u8*)0x02004000;
+// u8* copyBuf = (u8*)0x02004000;
+ALIGN(4) u8* copyBuf[copyBufSize];
 
 std::vector<ClipboardFile> clipboard;
+std::vector<DirEntry> dirContents;
+std::vector<DirEntry> subdirContents;
+
 bool clipboardOn = false;
 bool clipboardUsed = true;
 
 static float getGbNumber(u64 bytes) {
 	float gbNumber = 0.0f;
-	for (u64 i = 0; i <= bytes; i += 0x6666666) {
-		gbNumber += 0.1f;
-	}
+	for (u64 i = 0; i <= bytes; i += 0x6666666) { gbNumber += 0.1f; }
 	return gbNumber;
 }
 
 static float getTbNumber(u64 bytes) {
 	float tbNumber = 0.0f;
-	for (u64 i = 0; i <= bytes; i += 0x1999999999) {
-		tbNumber += 0.01f;
-	}
+	for (u64 i = 0; i <= bytes; i += 0x1999999999) { tbNumber += 0.01f; }
 	return tbNumber;
 }
 
@@ -176,9 +176,8 @@ int trimNds(const char *fileName) {
 }
 
 void dirCopy(const DirEntry &entry, int i, const char *destinationPath, const char *sourcePath) {
-	std::vector<DirEntry> dirContents;
 	dirContents.clear();
-	if (entry.isDirectory)	chdir((sourcePath + ("/" + entry.name)).c_str());
+	if (entry.isDirectory)chdir((sourcePath + ("/" + entry.name)).c_str());
 	getDirectoryContents(dirContents);
 	if (((int)dirContents.size()) == 1)	mkdir((destinationPath + ("/" + entry.name)).c_str(), 0777);
 	if (((int)dirContents.size()) != 1)	fcopy((sourcePath + ("/" + entry.name)).c_str(), (destinationPath + ("/" + entry.name)).c_str());
@@ -192,7 +191,6 @@ u64 dirSize(const std::vector<DirEntry> &dirContents) {
 			continue;
 
 		if(entry.isDirectory) {
-			std::vector<DirEntry> subdirContents;
 			if(chdir(entry.name.c_str()) == 0 && getDirectoryContents(subdirContents)) {
 				size += dirSize(subdirContents);
 				chdir("..");

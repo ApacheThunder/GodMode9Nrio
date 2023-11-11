@@ -6,6 +6,10 @@
 *.cmd
 data/*.bin
 title/
+gm9n_bootstrap/arm9/build
+gm9n_bootstrap/arm7/build
+gm9n_bootstrap/data
+gm9n_bootstrap/bootloader/*.bin
 .vscode
 *.DS_Store
 

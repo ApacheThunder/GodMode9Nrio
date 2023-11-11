@@ -128,9 +128,6 @@ $(OUTPUT).elf	:	$(OFILES)
 topLoad.s			:	../$(IMAGES)/topLoad.bmp
 	grit	$< -gB8 -gzl -fts -gTff00ff -o $@ -q
 
-subLoad.s			:	../$(IMAGES)/subLoad.bmp
-	grit	$< -gB8 -gzl -fts -gTff00ff -o $@ -q
-
 topError.s			:	../$(IMAGES)/topError.bmp
 	grit	$< -gB8 -gzl -fts -gTff00ff -o $@ -q
 

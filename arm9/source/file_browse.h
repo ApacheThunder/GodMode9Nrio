@@ -43,8 +43,6 @@ enum class FileOperation {
 	ndsInfo,
 	trimNds,
 	mountImg,
-	restoreSaveNds,
-	restoreSaveGba,
 	showInfo,
 	copySdOut,
 	copyFatOut,
@@ -61,3 +59,4 @@ bool getDirectoryContents (std::vector<DirEntry>& dirContents);
 
 
 #endif //FILE_BROWSE_H
+

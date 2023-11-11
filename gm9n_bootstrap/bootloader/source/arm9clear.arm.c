@@ -117,7 +117,7 @@ void __attribute__ ((long_call)) __attribute__((noreturn)) __attribute__((naked)
 
 #ifdef NTRMODE
 	// REG_SCFG_CLK = 0x80;
-	REG_SCFG_EXT = 0x83000000;
+	REG_SCFG_EXT = 0x03000000;
 #endif
 	arm9code();
 	while(1);

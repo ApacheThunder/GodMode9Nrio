@@ -162,6 +162,7 @@ int main() {
 		REG_SCFG_CLK = 0x187;
 		REG_SCFG_EXT = 0x92A40000;
 		for (int i = 0; i < 10; i++) { while(REG_VCOUNT!=191); while(REG_VCOUNT==191); }
+		REG_SCFG_EXT &= ~(1UL << 31);
 		// scfgUnlocked = true;
 	}
 	
@@ -172,25 +173,11 @@ int main() {
 	// Keep the ARM7 mostly idle
 	while (!exitflag) {
 		if ( 0 == (REG_KEYINPUT & (KEY_SELECT | KEY_START | KEY_L | KEY_R)))exitflag = true;
-		if (*(u32*)(0x2FFFD0C) == 0x454D4D43) {
-			my_sdmmc_get_cid(true, (u32*)0x2FFD7BC);	// Get eMMC CID
-			*(u32*)(0x2FFFD0C) = 0;
-		}
 		resyncClock();
 		// Send SD status
 		if(isDSiMode() || *(u16*)(0x4004700) != 0)fifoSendValue32(FIFO_USER_04, SD_IRQ_STATUS);
-		// Dump EEPROM save
-		if(fifoCheckAddress(FIFO_USER_01)) {
-			switch(fifoGetValue32(FIFO_USER_01)) {
-				case 0x44414552: // 'READ'
-					readEeprom((u8 *)fifoGetAddress(FIFO_USER_01), fifoGetValue32(FIFO_USER_01), fifoGetValue32(FIFO_USER_01));
-					break;
-				case 0x54495257: // 'WRIT'
-					writeEeprom(fifoGetValue32(FIFO_USER_01), (u8 *)fifoGetAddress(FIFO_USER_01), fifoGetValue32(FIFO_USER_01));
-					break;
-			}
-		}
-		swiWaitForVBlank();
+		while(REG_VCOUNT!=191);
+		while(REG_VCOUNT==191);
 	}
 	return 0;
 }

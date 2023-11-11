@@ -32,13 +32,14 @@
 // #include "nds_card.h"
 
 #include "topLoad.h"
-#include "subLoad.h"
 #include "topError.h"
 #include "subError.h"
 #include "subPrompt.h"
 
 #define CONSOLE_SCREEN_WIDTH 32
 #define CONSOLE_SCREEN_HEIGHT 24
+
+static bool ScreenInit = false;
 
 void vramcpy_ui (void* dest, const void* src, int size) 
 {
@@ -51,6 +52,7 @@ void vramcpy_ui (void* dest, const void* src, int size)
 }
 
 void BootSplashInit() {
+	if (ScreenInit)return;
 	videoSetMode(MODE_0_2D | DISPLAY_BG0_ACTIVE);
 	videoSetModeSub(MODE_0_2D | DISPLAY_BG0_ACTIVE);
 	vramSetBankA (VRAM_A_MAIN_BG_0x06000000);
@@ -61,50 +63,25 @@ void BootSplashInit() {
 	BG_PALETTE[255]=0xffff;
 	u16* bgMapTop = (u16*)SCREEN_BASE_BLOCK(0);
 	u16* bgMapSub = (u16*)SCREEN_BASE_BLOCK_SUB(0);
-	for (int i = 0; i < CONSOLE_SCREEN_WIDTH*CONSOLE_SCREEN_HEIGHT; i++) {
-		bgMapTop[i] = (u16)i;
-		bgMapSub[i] = (u16)i;
-	}
-
-}
-
-void LoadScreen() {
-	// Display Load Screen
-	decompress((void*)topLoadTiles, (void*)CHAR_BASE_BLOCK(2), LZ77Vram);
-	decompress((void*)subLoadTiles, (void*)CHAR_BASE_BLOCK_SUB(2), LZ77Vram);
-	vramcpy_ui (&BG_PALETTE[0], topLoadPal, topLoadPalLen);
-	vramcpy_ui (&BG_PALETTE_SUB[0], subLoadPal, subLoadPalLen);
+	for (int i = 0; i < CONSOLE_SCREEN_WIDTH*CONSOLE_SCREEN_HEIGHT; i++) { bgMapTop[i] = (u16)i; bgMapSub[i] = (u16)i; }
+	ScreenInit = true;
 }
 
 void CartridgePrompt() {
-
+	BootSplashInit();
 	// Display Load Screen
 	decompress((void*)topLoadTiles, (void*)CHAR_BASE_BLOCK(2), LZ77Vram);
 	decompress((void*)subPromptTiles, (void*)CHAR_BASE_BLOCK_SUB(2), LZ77Vram);
 	vramcpy_ui (&BG_PALETTE[0], topLoadPal, topLoadPalLen);
 	vramcpy_ui (&BG_PALETTE_SUB[0], subPromptPal, subPromptPalLen);
-	
 	for (int i = 0; i < 20; i++) { swiWaitForVBlank(); }
-
 }
 
 int main( int argc, char **argv) {
-
 	defaultExceptionHandler();
-
-	// u32 ndsHeader[0x80];
-	// char gameid[4];
-
-	BootSplashInit();
-
 	if (fatInitDefault()) {
-		
-		CIniFile GM9NBootstrap( "/_nds/GM9N_Bootstrap.ini" );
-		
+		CIniFile GM9NBootstrap( "/_nds/GM9N_Bootstrap.ini" );		
 		std::string	ndsPath = GM9NBootstrap.GetString( "GM9N_BOOTSTRAP", "SRL", "/NDS/GodMode9Nrio.nds");
-		
-		LoadScreen();
-
 		if (REG_SCFG_MC == 0x11) {
 			do { CartridgePrompt(); }
 			while (REG_SCFG_MC == 0x11);
@@ -118,9 +95,9 @@ int main( int argc, char **argv) {
 				enableSlot1();
 			}
 		}
-		
 		runNdsFile(ndsPath.c_str(), 0, NULL);
 	} else {
+		BootSplashInit();
 		// Display Error Screen
 		decompress((void*)topErrorTiles, (void*)CHAR_BASE_BLOCK(2), LZ77Vram);
 		decompress((void*)subErrorTiles, (void*)CHAR_BASE_BLOCK_SUB(2), LZ77Vram);

@@ -6,7 +6,6 @@
 #include "language.h"
 #include "main.h"
 #include "screenshot.h"
-#include "titleManager.h"
 
 #include <array>
 #include <nds.h>
@@ -17,14 +16,12 @@
 enum class StartMenuItem : u8 {
 	powerOff = 0,
 	reboot = 1,
-	titleManager = 2,
-	langauge = 3,
+	langauge = 2,
 };
 
 constexpr std::array<std::string *, 4> startMenuStrings = {
 	&STR_POWER_OFF,
 	&STR_REBOOT,
-	&STR_OPEN_TITLE_MANAGER,
 	&STR_LANGUAGE
 };
 
@@ -56,8 +53,6 @@ void startMenu() {
 			StartMenuItem::powerOff,
 			StartMenuItem::reboot
 		};
-		if(nandMounted && (sdMounted || flashcardMounted))
-			startMenuItems.push_back(StartMenuItem::titleManager);
 		startMenuItems.push_back(StartMenuItem::langauge);
 	} else {
 		startMenuItems = {
@@ -103,9 +98,6 @@ void startMenu() {
 				case StartMenuItem::reboot:
 					fifoSendValue32(FIFO_USER_02, 1);
 					while(1) swiWaitForVBlank();
-					break;
-				case StartMenuItem::titleManager:
-					titleManager();
 					break;
 				case StartMenuItem::langauge:
 					languageMenu();

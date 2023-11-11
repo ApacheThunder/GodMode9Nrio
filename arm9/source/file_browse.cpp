@@ -39,7 +39,6 @@
 #include "fileOperations.h"
 #include "driveMenu.h"
 #include "driveOperations.h"
-#include "dumpOperations.h"
 #include "font.h"
 #include "hexEditor.h"
 #include "my_sd.h"
@@ -179,22 +178,13 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 	int y = font->calcHeight(fullPath) + 1;
 
 	if (!entry->isDirectory) {
-		if (entry->isApp) {
-			operations.push_back(FileOperation::bootFile);
-		}
+		if (entry->isApp)operations.push_back(FileOperation::bootFile);
 
 		if(extension(entry->name, {"nds", "dsi", "ids", "app", "srl"})) {
 			if(currentDrive != Drive::nitroFS)
 				operations.push_back(FileOperation::mountNitroFS);
 			operations.push_back(FileOperation::ndsInfo);
 			operations.push_back(FileOperation::trimNds);
-		}
-		if(extension(entry->name, {"sav", "sav1", "sav2", "sav3", "sav4", "sav5", "sav6", "sav7", "sav8", "sav9"})) {
-			if(!(io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS) || entry->size <= (1 << 20))
-				operations.push_back(FileOperation::restoreSaveNds);
-			if(isRegularDS && (entry->size == 512 || entry->size == 8192 || entry->size == 32768 || entry->size == 65536 || entry->size == 131072 
-				|| entry->size == 528 || entry->size == 8208 || entry->size == 32784 || entry->size == 65552 || entry->size == 131088))
-				operations.push_back(FileOperation::restoreSaveGba);
 		}
 		if(currentDrive != Drive::fatImg && extension(entry->name, {"img", "sd", "sav", "pub", "pu1", "pu2", "pu3", "pu4", "pu5", "pu6", "pu7", "pu8", "pu9", "prv", "pr1", "pr2", "pr3", "pr4", "pr5", "pr6", "pr7", "pr8", "pr9", "0000"})) {
 			operations.push_back(FileOperation::mountImg);
@@ -207,20 +197,14 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 
 		// The bios SHA1 functions are only available on the DSi
 		// https://problemkaputt.de/gbatek.htm#biossha1functionsdsionly
-		if (bios9iEnabled) {
-			operations.push_back(FileOperation::calculateSHA1);
-		}
+		if (bios9iEnabled)operations.push_back(FileOperation::calculateSHA1);
 	}
 
 	operations.push_back(FileOperation::showInfo);
 
-	if (sdMounted && (strcmp(curdir, "sd:/gm9i/out/") != 0)) {
-		operations.push_back(FileOperation::copySdOut);
-	}
+	if (sdMounted && (strcmp(curdir, "sd:/gm9i/out/") != 0))operations.push_back(FileOperation::copySdOut);
 
-	if (flashcardMounted && (strcmp(curdir, "fat:/gm9i/out/") != 0)) {
-		operations.push_back(FileOperation::copyFatOut);
-	}
+	if (flashcardMounted && (strcmp(curdir, "fat:/gm9i/out/") != 0))operations.push_back(FileOperation::copyFatOut);
 
 	while (true) {
 		font->clear(false);
@@ -242,15 +226,6 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 					break;
 				case FileOperation::trimNds:
 					font->print(optionsCol, row++, false, STR_TRIM_NDS, alignStart);
-					break;
-				case FileOperation::restoreSaveNds:
-					if(!isRegularDS)
-						font->print(optionsCol, row++, false, STR_RESTORE_SAVE, alignStart);
-					else
-						font->print(optionsCol, row++, false, STR_RESTORE_SAVE_NDS, alignStart);
-					break;
-				case FileOperation::restoreSaveGba:
-					font->print(optionsCol, row++, false, STR_RESTORE_SAVE_GBA, alignStart);
 					break;
 				case FileOperation::mountImg:
 					font->print(optionsCol, row++, false, STR_MOUNT_FAT_IMG, alignStart);
@@ -316,12 +291,6 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 					applaunch = true;
 					font->print(optionsCol, optionOffset + y, false, STR_LOADING, alignStart);
 					font->update(false);
-					break;
-				} case FileOperation::restoreSaveNds: {
-					ndsCardSaveRestore(entry->name.c_str());
-					break;
-				} case FileOperation::restoreSaveGba: {
-					gbaCartSaveRestore(entry->name.c_str());
 					break;
 				} case FileOperation::copySdOut: {
 					if (access("sd:/gm9i", F_OK) != 0) {

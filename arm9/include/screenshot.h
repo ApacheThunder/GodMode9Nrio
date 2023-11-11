@@ -4,3 +4,4 @@
 bool screenshot(void);
 
 #endif // SCREENSHOT_H
+

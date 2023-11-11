@@ -31,7 +31,6 @@
 #include "config.h"
 #include "date.h"
 #include "screenshot.h"
-#include "dumpOperations.h"
 #include "driveOperations.h"
 #include "fileOperations.h"
 #include "font.h"
@@ -47,16 +46,9 @@ enum class DriveMenuOperation {
 	none,
 	sdCard,
 	flashcard,
-	ramDrive,
-	sysNand,
-	sysNandPhoto,
 	nitroFs,
-	fatImage,
-	gbaCart,
-	ndsCard,
+	fatImage
 };
-
-//static bool ramDumped = false;
 
 bool flashcardMountSkipped = true;
 static bool flashcardMountRan = true;
@@ -65,7 +57,6 @@ static std::vector<DriveMenuOperation> dmOperations;
 char romTitle[2][13] = {0};
 u32 romSize[2], romSizeTrimmed;
 
-static u8 gbaFixedValue = 0;
 static u8 stored_SCFG_MC = 0;
 
 extern bool arm7SCFGLocked;
@@ -82,55 +73,33 @@ void dm_drawTopScreen(void) {
 
 	if (dmOperations.size() == 0) {
 		font->print(firstCol, 1, true, STR_NO_DRIVES_FOUND, alignStart);
-	} else
-	for (int i = 0; i < (int)dmOperations.size(); i++) {
-		Palette pal = dmCursorPosition == i ? Palette::white : Palette::gray;
-		switch(dmOperations[i]) {
-			case DriveMenuOperation::sdCard:
-				font->printf(firstCol, i + 1, true, alignStart, pal, STR_SDCARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
-				if(!driveWritable(Drive::sdCard))
+	} else {
+		for (int i = 0; i < (int)dmOperations.size(); i++) {
+			Palette pal = dmCursorPosition == i ? Palette::white : Palette::gray;
+			switch(dmOperations[i]) {
+				case DriveMenuOperation::sdCard:
+					font->printf(firstCol, i + 1, true, alignStart, pal, STR_SDCARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
+					if(!driveWritable(Drive::sdCard))
+						font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
+					break;
+				case DriveMenuOperation::flashcard:
+					font->printf(firstCol, i + 1, true, alignStart, pal, STR_FLASHCARD_LABEL.c_str(), fatLabel[0] == 0 ? STR_UNTITLED.c_str() : fatLabel);
+					if(!driveWritable(Drive::flashcard))
+						font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
+					break;			
+				case DriveMenuOperation::nitroFs:
+					font->print(firstCol, i + 1, true, STR_NITROFS_LABEL, alignStart, pal);
 					font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
-				break;
-			case DriveMenuOperation::flashcard:
-				font->printf(firstCol, i + 1, true, alignStart, pal, STR_FLASHCARD_LABEL.c_str(), fatLabel[0] == 0 ? STR_UNTITLED.c_str() : fatLabel);
-				if(!driveWritable(Drive::flashcard))
+					break;
+				case DriveMenuOperation::fatImage:
+					font->printf(firstCol, i + 1, true, alignStart, pal, STR_FAT_LABEL.c_str(), imgLabel[0] == 0 ? STR_UNTITLED.c_str() : imgLabel);
 					font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
-				break;
-			case DriveMenuOperation::ramDrive:
-				font->print(firstCol, i + 1, true, STR_RAMDRIVE_LABEL, alignStart, pal);
-				break;
-			case DriveMenuOperation::sysNand:
-				font->print(firstCol, i + 1, true, STR_SYSNAND_LABEL, alignStart, pal);
-				if(!driveWritable(Drive::nand))
-					font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
-				break;
-			case DriveMenuOperation::sysNandPhoto:
-				font->print(firstCol, i + 1, true, STR_SYSNAND_PHOTO_LABEL, alignStart, pal);
-				if(!driveWritable(Drive::nandPhoto))
-					font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
-				break;
-			case DriveMenuOperation::nitroFs:
-				font->print(firstCol, i + 1, true, STR_NITROFS_LABEL, alignStart, pal);
-				font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
-				break;
-			case DriveMenuOperation::fatImage:
-				font->printf(firstCol, i + 1, true, alignStart, pal, STR_FAT_LABEL.c_str(), imgLabel[0] == 0 ? STR_UNTITLED.c_str() : imgLabel);
-				font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
-				break;
-			case DriveMenuOperation::gbaCart:
-				font->printf(firstCol, i + 1, true, alignStart, pal, STR_GBA_GAMECART.c_str(), romTitle[1]);
-				break;
-			case DriveMenuOperation::ndsCard:
-				if(romTitle[0][0] != 0)
-					font->printf(firstCol, i + 1, true, alignStart, pal, STR_NDS_GAMECARD.c_str(), romTitle[0]);
-				else
-					font->print(firstCol, i + 1, true, STR_NDS_GAMECARD_NO_TITLE, alignStart, pal);
-				break;
-			case DriveMenuOperation::none:
-				break;
+					break;
+				case DriveMenuOperation::none:
+					break;
+			}
 		}
 	}
-
 	font->update(true);
 }
 
@@ -159,8 +128,9 @@ void dm_drawBottomScreen(void) {
 		font->print(firstCol, row--, false, STR_SCREENSHOTTEXT, alignStart);
 	}
 
-	if(dmOperations[dmCursorPosition] == DriveMenuOperation::nitroFs || dmOperations[dmCursorPosition] == DriveMenuOperation::fatImage)
+	if(dmOperations[dmCursorPosition] == DriveMenuOperation::nitroFs || dmOperations[dmCursorPosition] == DriveMenuOperation::fatImage) {
 		font->print(firstCol, row--, false, STR_IMAGETEXT, alignStart);
+	}
 	font->print(firstCol, row--, false, titleName, alignStart);
 
 	switch(dmOperations[dmCursorPosition]) {
@@ -174,36 +144,9 @@ void dm_drawBottomScreen(void) {
 			font->printf(firstCol, 1, false, alignStart, Palette::white, STR_SLOT1_FAT.c_str(), getBytes(fatSize).c_str());
 			font->printf(firstCol, 2, false, alignStart, Palette::white, STR_N_FREE.c_str(), getBytes(driveSizeFree(Drive::flashcard)).c_str());
 			break;
-		case DriveMenuOperation::gbaCart:
-			font->printf(firstCol, 0, false, alignStart, Palette::white, STR_GBA_GAMECART.c_str(), romTitle[1]);
-			font->printf(firstCol, 1, false, alignStart, Palette::white, STR_GBA_GAME.c_str(), getBytes(romSize[1]).c_str());
-			break;
 		case DriveMenuOperation::nitroFs:
 			font->print(firstCol, 0, false, STR_NITROFS_LABEL, alignStart);
 			font->print(firstCol, 1, false, STR_GAME_VIRTUAL, alignStart);
-			break;
-		case DriveMenuOperation::ndsCard:
-			if(romTitle[0][0] != 0) {
-				font->printf(firstCol, 0, false, alignStart, Palette::white, STR_NDS_GAMECARD.c_str(), romTitle[0]);
-				font->printf(firstCol, 1, false, alignStart, Palette::white, STR_NDS_GAME.c_str(), getBytes(romSize[0]).c_str(), getBytes(romSizeTrimmed).c_str());
-			} else {
-				font->print(firstCol, 0, false, STR_NDS_GAMECARD_NO_TITLE, alignStart);
-			}
-			break;
-		case DriveMenuOperation::ramDrive:
-			font->print(firstCol, 0, false, STR_RAMDRIVE_LABEL, alignStart);
-			font->printf(firstCol, 1, false, alignStart, Palette::white, STR_RAMDRIVE_FAT.c_str(), getBytes(ramdSize).c_str());
-			font->printf(firstCol, 2, false, alignStart, Palette::white, STR_N_FREE.c_str(), getBytes(driveSizeFree(Drive::ramDrive)).c_str());
-			break;
-		case DriveMenuOperation::sysNand:
-			font->print(firstCol, 0, false, STR_SYSNAND_LABEL, alignStart);
-			font->printf(firstCol, 1, false, alignStart, Palette::white, STR_SYSNAND_FAT.c_str(), getBytes(nandSize).c_str());
-			font->printf(firstCol, 2, false, alignStart, Palette::white, STR_N_FREE.c_str(), getBytes(driveSizeFree(Drive::nand)).c_str());
-			break;
-		case DriveMenuOperation::sysNandPhoto:
-			font->print(firstCol, 0, false, STR_SYSNAND_LABEL, alignStart);
-			font->printf(firstCol, 1, false, alignStart, Palette::white, STR_SYSNAND_FAT.c_str(), getBytes(photoSize).c_str());
-			font->printf(firstCol, 2, false, alignStart, Palette::white, STR_N_FREE.c_str(), getBytes(driveSizeFree(Drive::nandPhoto)).c_str());
 			break;
 		case DriveMenuOperation::fatImage:
 			font->printf(firstCol, 0, false, alignStart, Palette::white, STR_FAT_LABEL.c_str(), imgLabel[0] == 0 ? STR_UNTITLED.c_str() : imgLabel);
@@ -222,66 +165,25 @@ void driveMenu (void) {
 	int held = 0;
 
 	while (true) {
-		if (!isDSiMode() && isRegularDS) {
-			gbaFixedValue = *(u8*)(0x080000B2);
-		}
-
 		dmOperations.clear();
 		if (sdMounted && !sdRemoved)
 			dmOperations.push_back(DriveMenuOperation::sdCard);
-		if (nandMounted)
-			dmOperations.push_back(DriveMenuOperation::sysNand);
-		if (photoMounted)
-			dmOperations.push_back(DriveMenuOperation::sysNandPhoto);
 		if (flashcardMounted && !driveRemoved(Drive::flashcard))
 			dmOperations.push_back(DriveMenuOperation::flashcard);
-		if (ramdriveMounted)
-			dmOperations.push_back(DriveMenuOperation::ramDrive);
 		if (imgMounted)
 			dmOperations.push_back(DriveMenuOperation::fatImage);
 		if (nitroMounted)
 			dmOperations.push_back(DriveMenuOperation::nitroFs);
-		if (!isDSiMode() && isRegularDS && gbaFixedValue == 0x96) {
-			dmOperations.push_back(DriveMenuOperation::gbaCart);
-			*(u16*)(0x020000C0) = 0;
-			if(romTitle[1][0] == 0) {
-				tonccpy(romTitle[1], (char*)0x080000A0, 12);
-				romSize[1] = 0;
-				for (romSize[1] = (1 << 20); romSize[1] < (1 << 25); romSize[1] <<= 1) {
-					vu16 *rompos = (vu16*)(0x08000000 + romSize[1]);
-					bool romend = true;
-					for (int j = 0; j < 0x1000; j++) {
-						if (rompos[j] != j) {
-							romend = false;
-							break;
-						}
-					}
-					if (romend)
-						break;
-				}
-			}
-		} else if (romTitle[1][0] != 0) {
+		if (romTitle[1][0] != 0) {
 			romTitle[1][0] = 0;
 			romSize[1] = 0;
 		}
-		if (((io_dldi_data->ioInterface.features & FEATURE_SLOT_GBA) || (isRegularDS && !flashcardMounted && romTitle[1][0] != 0))
-		|| (isDSiMode() && !arm7SCFGLocked && !(REG_SCFG_MC & BIT(0)))) {
-			dmOperations.push_back(DriveMenuOperation::ndsCard);
-			if(romTitle[0][0] == 0 && ((io_dldi_data->ioInterface.features & FEATURE_SLOT_GBA) || !flashcardMounted) && !isRegularDS) {
-				sNDSHeaderExt ndsHeader;
-				cardInit(&ndsHeader);
-				tonccpy(romTitle[0], ndsHeader.gameTitle, 12);
-				romSize[0] = 0x20000 << ndsHeader.deviceSize;
-				romSizeTrimmed = (isDSiMode() && (ndsHeader.unitCode != 0) && (ndsHeader.twlRomSize > 0))
-										? ndsHeader.twlRomSize : ndsHeader.romSize + 0x88;
-			}
-		} else if (romTitle[0][0] != 0) {
+		if (romTitle[0][0] != 0) {
 			romTitle[0][0] = 0;
 			romSizeTrimmed = romSize[0] = 0;
 		}
 
-		if(dmCursorPosition >= (int)dmOperations.size())
-			dmCursorPosition = dmOperations.size() - 1;
+		if(dmCursorPosition >= (int)dmOperations.size())dmCursorPosition = dmOperations.size() - 1;
 
 		dm_drawBottomScreen();
 		dm_drawTopScreen();
@@ -295,20 +197,8 @@ void driveMenu (void) {
 			held = keysHeld();
 			swiWaitForVBlank();
 
-			if (!isDSiMode() && isRegularDS) {
-				if (*(u8*)(0x080000B2) != gbaFixedValue) {
-					break;
-				}
-				if(ramdriveMounted && driveRemoved(Drive::ramDrive)) {
-					currentDrive = Drive::ramDrive;
-					chdir("ram:/");
-					ramdriveUnmount();
-					break;
-				}
-			} else if (isDSiMode()) {
-				if ((REG_SCFG_MC != stored_SCFG_MC) || (flashcardMounted && driveRemoved(Drive::flashcard))) {
-					break;
-				}
+			if (isDSiMode()) {
+				if ((REG_SCFG_MC != stored_SCFG_MC) || (flashcardMounted && driveRemoved(Drive::flashcard)))break;
 				if (sdMounted && sdRemoved) {
 					currentDrive = Drive::sdCard;
 					chdir("sd:/");
@@ -349,14 +239,9 @@ void driveMenu (void) {
 				chdir("fat:/");
 				screenMode = 1;
 				break;
-			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::gbaCart && isRegularDS && flashcardMounted && gbaFixedValue == 0x96) {
-				gbaCartDump();
 			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::nitroFs && nitroMounted) {
 				if ((sdMounted && nitroCurrentDrive == Drive::sdCard)
 				|| (flashcardMounted && nitroCurrentDrive == Drive::flashcard)
-				|| (ramdriveMounted && nitroCurrentDrive == Drive::ramDrive)
-				|| (nandMounted && nitroCurrentDrive == Drive::nand)
-				|| (nandMounted && nitroCurrentDrive == Drive::nandPhoto)
 				|| (imgMounted && nitroCurrentDrive == Drive::fatImg))
 				{
 					currentDrive = Drive::nitroFS;
@@ -364,30 +249,8 @@ void driveMenu (void) {
 					screenMode = 1;
 					break;
 				}
-			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::ndsCard && (sdMounted || flashcardMounted || romTitle[1][0] != 0)) {
-				ndsCardDump();
-			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::ramDrive && ramdriveMounted) {
-				currentDrive = Drive::ramDrive;
-				chdir("ram:/");
-				screenMode = 1;
-				break;
-			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::sysNand && nandMounted) {
-				currentDrive = Drive::nand;
-				chdir("nand:/");
-				screenMode = 1;
-				break;
-			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::sysNandPhoto && photoMounted) {
-				currentDrive = Drive::nandPhoto;
-				chdir("photo:/");
-				screenMode = 1;
-				break;
-			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::fatImage && imgMounted) {
-				if ((sdMounted && imgCurrentDrive == Drive::sdCard)
-				|| (flashcardMounted && imgCurrentDrive == Drive::flashcard)
-				|| (ramdriveMounted && imgCurrentDrive == Drive::ramDrive)
-				|| (nandMounted && imgCurrentDrive == Drive::nand)
-				|| (nandMounted && imgCurrentDrive == Drive::nandPhoto))
-				{
+			} if (dmOperations[dmCursorPosition] == DriveMenuOperation::fatImage && imgMounted) {
+				if ((sdMounted && imgCurrentDrive == Drive::sdCard) || (flashcardMounted && imgCurrentDrive == Drive::flashcard)) {
 					currentDrive = Drive::fatImg;
 					chdir("img:/");
 					screenMode = 1;
@@ -428,9 +291,7 @@ void driveMenu (void) {
 			}
 		}
 
-		if (pressed & KEY_START) {
-			startMenu();
-		}
+		if (pressed & KEY_START)startMenu();
 
 		// Swap screens
 		if (pressed & config->screenSwapKey()) {
@@ -439,9 +300,7 @@ void driveMenu (void) {
 		}
 
 		// Make a screenshot
-		if ((held & KEY_R) && (pressed & KEY_L)) {
-			screenshot();
-		}
+		if ((held & KEY_R) && (pressed & KEY_L))screenshot();
 
 		if (isDSiMode() && !flashcardMountSkipped) {
 			if (driveRemoved(Drive::flashcard)) {
@@ -456,3 +315,4 @@ void driveMenu (void) {
 		}
 	}
 }
+
