@@ -16,15 +16,16 @@
 	</a>
 </p>
 
-GodMode9Nrio is a full access file browser for the Nintendo DS, Nintendo DSi and the Nintendo 3DS's TWL_FIRM but this version is focused towards NAND based flashcarts like N-Card and it's clones.
-GM9N_Bootstrap is included as an option for booting GodMode9Nrio in the event boot reliability is bad for you. The INI file for this bootstrap can be used to define a custom path to the GM9N NDS file. It is expected for this INI file to be in _nds folder.
-If the INI file is not present the default boot path for G9MN will be in the NDS folder.
+GodMode9Nrio is a full-access file browser for the Nintendo DS, Nintendo DSi, and the Nintendo 3DS's TWL_FIRM, but this version is focused on NAND-based flashcarts such as the N-Card and its clones, the DS Fire Link, the DS Linker, and the Ultra FlashPass EX, amongst others.
+GM9N_Bootstrap is included as an option for booting GodMode9Nrio in the event that boot reliability is bad for you. The INI file for this bootstrap can be used to define a custom path to the GM9N NDS file. It is expected for this INI file to be in the "_nds" folder. If the INI file is not present, then the default boot path for G9MN will be in the "NDS" folder.
 
-## Features Removed for compatiblity
-Please note that some features were removed to make this functional for NTR mode switch currently required to make NRIO DLDI work properly.
-That includes the removal of NitroFS data files from main GM9 SRL and the ability to mount the NitroFS of GM9N.
-You can boot uDisk from NRIO cards and run Xmenu with this but it is not recommended as you may get save related errors when trying to boot things with xmenu.
-TWL NAND and Ramdisk mounting has also been removed. The cart dumping features may also not operate correctly. Please use normal build of GM9i for those features. 
+## Features Removed for Compatibility Assurance
+Please note that some features were removed to make this functional for NTR-mode, which is currently required to make the NRIO DLDI work properly.
+
+- Removal of NitroFS data files from the main GM9 SRL and the ability to mount the NitroFS of GM9N.
+- uDisk can be booted from NRIO cards and run XMenu, but it is not recommended as you _may_ get save-related errors when trying to boot applications. You can use this method, however, to fix bricked NRIO cards (i.e., run an update to fix a damaged uDisk, or other fault that can be easily recoverable).
+- TWL NAND and RAM disk mounting have been removed.
+- Cartridge dumping functions may also not operate correctly; please use a normal build of GM9i to be able to use these features.
 
 <div align="center">
 	<img src="https://github.com/DS-Homebrew/GodMode9i/raw/master/resources/screenshots/drive-menu.png" alt="Drive menu">
@@ -33,7 +34,6 @@ TWL NAND and Ramdisk mounting has also been removed. The cart dumping features m
 </div>
 
 ## Features
-
 - Dump Game Boy Advance cartridges on the original Nintendo DS and Nintendo DS Lite consoles.
 - Dump Nintendo DS/DSi cartridges on Nintendo DSi and Nintendo 3DS consoles (if GodMode9i is run on the console SD card).
    - They can also be dumped on the original Nintendo DS and Nintendo DS Lite consoles, if running from a Slot-2 flashcard.
@@ -43,7 +43,7 @@ TWL NAND and Ramdisk mounting has also been removed. The cart dumping features m
 - Mount the NitroFS of NDS files, DSiWare saves, and FAT images.
 - View and edit the contents of files with a hex editor.
 - Calculate the SHA-1 hash of files on Nintendo DSi and Nintendo 3DS consoles.
-- Browse files on supported flashcards when running GM9i from the NAND or SD Card. (`N-Card and it's clones`)
+- Browse files on supported N-Cards and its clones when running GM9i from the NAND or SD Card.
 - Browse files on the internal NAND of Nintendo DSi consoles.
 - Browse files on the SD Card when running GM9i from any DS-mode flashcard. (Requires **TW**i**L**ight Menu++ with Slot-1 SD/SCFG access enabled, and TWLMenu++ installed on the flashcard.)
 - Translated to many different languages. Join the [Crowdin project](https://crowdin.com/project/godmode9i) to contribute more!
