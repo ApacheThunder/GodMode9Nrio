@@ -4,7 +4,6 @@
 *.cia
 *.elf
 *.cmd
-*.dldi
 data/*.bin
 title/
 gm9n_bootstrap/arm9/build
