@@ -30,8 +30,6 @@
 #include <nds.h>
 #include <string.h>
 
-#include "gba.h"
-
 #define SD_IRQ_STATUS (*(vu32*)0x400481C)
 
 #define BASE_DELAY (100)

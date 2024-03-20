@@ -57,20 +57,16 @@ static void writeAddr (data_t *mem, addr_t offset, addr_t value) {
 	((addr_t*)mem)[offset/sizeof(addr_t)] = value;
 }
 
-static void vramcpy (void* dst, const void* src, int len)
-{
+static void vramcpy (void* dst, const void* src, int len) {
 	u16* dst16 = (u16*)dst;
 	u16* src16 = (u16*)src;
 	
 	//dmaCopy(src, dst, len);
 
-	for ( ; len > 0; len -= 2) {
-		*dst16++ = *src16++;
-	}
+	for ( ; len > 0; len -= 2) { *dst16++ = *src16++; }
 }	
 
-int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, int argc, const char** argv)
-{
+ITCM_CODE int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, int argc, const char** argv) {
 	char* argStart;
 	u16* argData;
 	u16 argTempVal = 0;
@@ -149,7 +145,7 @@ int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, int 
 	return true;
 }
 
-int runNdsFile (const char* filename, int argc, const char** argv)  {
+ITCM_CODE int runNdsFile (const char* filename, int argc, const char** argv) {
 	struct stat st;
 	char filePath[PATH_MAX];
 	int pathLen;

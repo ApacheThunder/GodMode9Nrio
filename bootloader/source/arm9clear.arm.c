@@ -33,7 +33,7 @@ void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)
 		TIMER_DATA(i) = 0;
 	}
 
-	VRAM_CR = (VRAM_CR & 0xffff0000) | 0x00008080 ;
+	/* VRAM_CR = (VRAM_CR & 0xffff0000) | 0x00008080 ;
 	
 	vu16 *mainregs = (vu16*)0x04000000;
 	vu16 *subregs = (vu16*)0x04001000;
@@ -55,7 +55,7 @@ void __attribute__ ((long_call)) __attribute__((naked)) __attribute__((noreturn)
 	VRAM_G_CR = 0;
 	VRAM_H_CR = 0;
 	VRAM_I_CR = 0;
-	REG_POWERCNT  = 0x820F;
+	REG_POWERCNT  = 0x820F;*/
 
 	//set shared ram to ARM7
 	WRAM_CR = 0x03;

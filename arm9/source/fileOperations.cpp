@@ -9,10 +9,10 @@
 #include "file_browse.h"
 #include "font.h"
 #include "ndsheaderbanner.h"
-#include "screenshot.h"
 #include "language.h"
 
-#define copyBufSize 0x8000
+// #define copyBufSize 0x8000
+#define copyBufSize 0x10000
 #define shaChunkSize 0x10000
 
 // u8* copyBuf = (u8*)0x02004000;
@@ -321,7 +321,7 @@ bool fcopy(const char *sourcePath, const char *destinationPath) {
 }
 
 void changeFileAttribs(const DirEntry *entry) {
-	int pressed = 0, held = 0;
+	int pressed = 0;
 	int cursorScreenPos = font->calcHeight(entry->name);
 	uint8_t currentAttribs = FAT_getAttr(entry->name.c_str());
 	uint8_t newAttribs = currentAttribs;
@@ -352,7 +352,6 @@ void changeFileAttribs(const DirEntry *entry) {
 		// Power saving loop. Only poll the keys once per frame and sleep the CPU if there is nothing else to do
 		do {
 			scanKeys();
-			held = keysHeld();
 			pressed = keysDown();
 			swiWaitForVBlank();
 		} while (!(pressed & KEY_UP) && !(pressed & KEY_DOWN) && !(pressed & KEY_RIGHT) && !(pressed & KEY_LEFT)
@@ -373,10 +372,7 @@ void changeFileAttribs(const DirEntry *entry) {
 			}
 		}
 
-		if (pressed & (KEY_A | KEY_B)) {
-			break;
-		} else if (held & KEY_R && pressed & KEY_L) {
-			screenshot();
-		}
+		if (pressed & (KEY_A | KEY_B))break;
 	}
 }
+

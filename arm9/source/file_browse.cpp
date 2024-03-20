@@ -35,7 +35,6 @@
 #include "main.h"
 #include "config.h"
 #include "date.h"
-#include "screenshot.h"
 #include "fileOperations.h"
 #include "driveMenu.h"
 #include "driveOperations.h"
@@ -171,7 +170,7 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 	if(config->screenSwap())
 		lcdMainOnTop();
 
-	int pressed = 0, held = 0;
+	int pressed = 0;
 	std::vector<FileOperation> operations;
 	int optionOffset = 0;
 	std::string fullPath = curdir + entry->name;
@@ -265,7 +264,6 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 		do {
 			scanKeys();
 			pressed = keysDownRepeat();
-			held = keysHeld();
 			swiWaitForVBlank();
 
 			if(driveRemoved(currentDrive)) {
@@ -288,6 +286,7 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 		if (pressed & KEY_A) {
 			switch(operations[optionOffset]) {
 				case FileOperation::bootFile: {
+					font->clear(false);
 					applaunch = true;
 					font->print(optionsCol, optionOffset + y, false, STR_LOADING, alignStart);
 					font->update(false);
@@ -399,10 +398,6 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 						scanKeys();
 						pressed = keysDownRepeat();
 						swiWaitForVBlank();
-
-						if(keysHeld() & KEY_R && pressed & KEY_L) {
-							screenshot();
-						}
 					} while (!(pressed & (KEY_A | KEY_Y | KEY_B | KEY_X)));
 					break;
 				} case FileOperation::none: {
@@ -420,10 +415,6 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 				screenSwapped ? lcdMainOnBottom() : lcdMainOnTop();
 
 			return FileOperation::none;
-		}
-		// Make a screenshot
-		else if ((held & KEY_R) && (pressed & KEY_L)) {
-			screenshot();
 		}
 	}
 }
@@ -536,9 +527,6 @@ void fileBrowse_drawBottomScreen(DirEntry* entry) {
 	}
 	font->print(firstCol, row--, false, STR_START_START_MENU, alignStart);
 	font->print(firstCol, row--, false, clipboardOn ? STR_CLEAR_CLIPBOARD : STR_RESTORE_CLIPBOARD, alignStart);
-	if ((sdMounted && driveWritable(Drive::sdCard)) || (flashcardMounted && driveWritable(Drive::flashcard))) {
-		font->print(firstCol, row--, false, STR_SCREENSHOTTEXT, alignStart);
-	}
 	font->print(firstCol, row--, false, STR_DIRECTORY_OPTIONS, alignStart);
 	if(driveWritable(currentDrive))
 		font->print(firstCol, row--, false, clipboardOn ? STR_PASTE_FILES_CREATE_ENTRY : STR_COPY_FILES_CREATE_ENTRY, alignStart);
@@ -921,9 +909,7 @@ std::string browseForFile (void) {
 		} else if (pressed & config->screenSwapKey()) { // Swap screens
 			screenSwapped = !screenSwapped;
 			screenSwapped ? lcdMainOnBottom() : lcdMainOnTop();
-		} else if ((held & KEY_R) && (pressed & KEY_L)) { // Make a screenshot
-			if(screenshot())
-				getDirectoryContents(dirContents);
 		}
 	}
 }
+

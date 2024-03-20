@@ -30,7 +30,6 @@
 #include "main.h"
 #include "config.h"
 #include "date.h"
-#include "screenshot.h"
 #include "driveOperations.h"
 #include "fileOperations.h"
 #include "font.h"
@@ -124,10 +123,7 @@ void dm_drawBottomScreen(void) {
 	} else if(flashcardMounted) {
 		font->print(firstCol, row--, false, STR_UNMOUNT_FLASHCARD, alignStart);
 	}
-	if ((sdMounted && driveWritable(Drive::sdCard)) || (flashcardMounted && driveWritable(Drive::flashcard))) {
-		font->print(firstCol, row--, false, STR_SCREENSHOTTEXT, alignStart);
-	}
-
+	
 	if(dmOperations[dmCursorPosition] == DriveMenuOperation::nitroFs || dmOperations[dmCursorPosition] == DriveMenuOperation::fatImage) {
 		font->print(firstCol, row--, false, STR_IMAGETEXT, alignStart);
 	}
@@ -298,9 +294,6 @@ void driveMenu (void) {
 			screenSwapped = !screenSwapped;
 			screenSwapped ? lcdMainOnBottom() : lcdMainOnTop();
 		}
-
-		// Make a screenshot
-		if ((held & KEY_R) && (pressed & KEY_L))screenshot();
 
 		if (isDSiMode() && !flashcardMountSkipped) {
 			if (driveRemoved(Drive::flashcard)) {

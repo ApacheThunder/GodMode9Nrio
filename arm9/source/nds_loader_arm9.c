@@ -35,10 +35,10 @@
 #endif
 
 #include "nds_loader_arm9.h"
-#define LCDC_BANK_C (u16*)0x06840000
-#define STORED_FILE_CLUSTER (*(((u32*)LCDC_BANK_C) + 1))
-#define INIT_DISC (*(((u32*)LCDC_BANK_C) + 2))
-#define WANT_TO_PATCH_DLDI (*(((u32*)LCDC_BANK_C) + 3))
+#define LCDC_BANK_D (u16*)0x06860000
+#define STORED_FILE_CLUSTER (*(((u32*)LCDC_BANK_D) + 1))
+#define INIT_DISC (*(((u32*)LCDC_BANK_D) + 2))
+#define WANT_TO_PATCH_DLDI (*(((u32*)LCDC_BANK_D) + 3))
 
 
 /*
@@ -255,8 +255,7 @@ static bool dldiPatchLoader (data_t *binData, u32 binSize, bool clearBSS)
 	return true;
 }
 
-int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, bool dldiPatchNds, int argc, const char** argv)
-{
+ITCM_CODE int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, bool dldiPatchNds, int argc, const char** argv) {
 	char* argStart;
 	u16* argData;
 	u16 argTempVal = 0;
@@ -266,47 +265,41 @@ int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, bool
 	irqDisable(IRQ_ALL);
 
 	// Direct CPU access to VRAM bank C
-	VRAM_C_CR = VRAM_ENABLE | VRAM_C_LCD;
+	VRAM_D_CR = VRAM_ENABLE | VRAM_D_LCD;
 	// Load the loader/patcher into the correct address
-	tonccpy (LCDC_BANK_C, loader, loaderSize);
+	tonccpy (LCDC_BANK_D, loader, loaderSize);
 
 	// Set the parameters for the loader
 	// STORED_FILE_CLUSTER = cluster;
-	writeAddr ((data_t*) LCDC_BANK_C, STORED_FILE_CLUSTER_OFFSET, cluster);
+	writeAddr ((data_t*) LCDC_BANK_D, STORED_FILE_CLUSTER_OFFSET, cluster);
 	// INIT_DISC = initDisc;
-	writeAddr ((data_t*) LCDC_BANK_C, INIT_DISC_OFFSET, initDisc);
+	writeAddr ((data_t*) LCDC_BANK_D, INIT_DISC_OFFSET, initDisc);
 
-	writeAddr ((data_t*) LCDC_BANK_C, DSIMODE_OFFSET, isDSiMode());
+	writeAddr ((data_t*) LCDC_BANK_D, DSIMODE_OFFSET, isDSiMode());
 	if(argv[0][0]=='s' && argv[0][1]=='d') {
 		dldiPatchNds = false;
-		writeAddr ((data_t*) LCDC_BANK_C, HAVE_DSISD_OFFSET, 1);
+		writeAddr ((data_t*) LCDC_BANK_D, HAVE_DSISD_OFFSET, 1);
 	}
 
 	// WANT_TO_PATCH_DLDI = dldiPatchNds;
-	writeAddr ((data_t*) LCDC_BANK_C, WANT_TO_PATCH_DLDI_OFFSET, dldiPatchNds);
+	writeAddr ((data_t*) LCDC_BANK_D, WANT_TO_PATCH_DLDI_OFFSET, dldiPatchNds);
 	// Give arguments to loader
-	argStart = (char*)LCDC_BANK_C + readAddr((data_t*)LCDC_BANK_C, ARG_START_OFFSET);
+	argStart = (char*)LCDC_BANK_D + readAddr((data_t*)LCDC_BANK_D, ARG_START_OFFSET);
 	argStart = (char*)(((int)argStart + 3) & ~3);	// Align to word
 	argData = (u16*)argStart;
 	argSize = 0;
 	
-	for (; argc > 0 && *argv; ++argv, --argc) 
-	{
-		for (argChar = *argv; *argChar != 0; ++argChar, ++argSize) 
-		{
-			if (argSize & 1) 
-			{
+	for (; argc > 0 && *argv; ++argv, --argc) {
+		for (argChar = *argv; *argChar != 0; ++argChar, ++argSize)  {
+			if (argSize & 1)  {
 				argTempVal |= (*argChar) << 8;
 				*argData = argTempVal;
 				++argData;
-			} 
-			else 
-			{
+			} else {
 				argTempVal = *argChar;
 			}
 		}
-		if (argSize & 1)
-		{
+		if (argSize & 1) {
 			*argData = argTempVal;
 			++argData;
 		}
@@ -315,49 +308,42 @@ int runNds (const void* loader, u32 loaderSize, u32 cluster, bool initDisc, bool
 	}
 	*argData = argTempVal;
 	
-	writeAddr ((data_t*) LCDC_BANK_C, ARG_START_OFFSET, (addr_t)argStart - (addr_t)LCDC_BANK_C);
-	writeAddr ((data_t*) LCDC_BANK_C, ARG_SIZE_OFFSET, argSize);
+	writeAddr ((data_t*) LCDC_BANK_D, ARG_START_OFFSET, (addr_t)argStart - (addr_t)LCDC_BANK_D);
+	writeAddr ((data_t*) LCDC_BANK_D, ARG_SIZE_OFFSET, argSize);
 
 		
 	if(dldiPatchNds) {
 		// Patch the loader with a DLDI for the card
-		if (!dldiPatchLoader ((data_t*)LCDC_BANK_C, loaderSize, initDisc)) {
-			return 3;
-		}
+		if (!dldiPatchLoader ((data_t*)LCDC_BANK_D, loaderSize, initDisc))return 3;
 	}
 
 	irqDisable(IRQ_ALL);
 
 	// Give the VRAM to the ARM7
-	VRAM_C_CR = VRAM_ENABLE | VRAM_C_ARM7_0x06000000;	
+	VRAM_D_CR = VRAM_ENABLE | VRAM_D_ARM7_0x06020000;
 	// Reset into a passme loop
 	REG_EXMEMCNT |= ARM7_OWNS_ROM | ARM7_OWNS_CARD;
 	*((vu32*)0x02FFFFFC) = 0;
 	*((vu32*)0x02FFFE04) = (u32)0xE59FF018;
 	*((vu32*)0x02FFFE24) = (u32)0x02FFFE04;
 
-	resetARM7(0x06000000);
+	resetARM7(0x06020000);
 
 	swiSoftReset(); 
 	return true;
 }
 
-int runNdsFile (const char* filename, int argc, const char** argv)  {
+ITCM_CODE int runNdsFile (const char* filename, int argc, const char** argv)  {
 	struct stat st;
 	char filePath[PATH_MAX];
 	int pathLen;
 	const char* args[1];
-
 	
-	if (stat (filename, &st) < 0) {
-		return 1;
-	}
+	if (stat (filename, &st) < 0)return 1;
 
 	if (argc <= 0 || !argv) {
 		// Construct a command line if we weren't supplied with one
-		if (!getcwd (filePath, PATH_MAX)) {
-			return 2;
-		}
+		if (!getcwd (filePath, PATH_MAX))return 2;
 		pathLen = strlen(filePath);
 		if(pathLen < PATH_MAX && filePath[pathLen - 1] != '/') {
 			filePath[pathLen] = '/';

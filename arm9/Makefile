@@ -48,12 +48,13 @@ GRAPHICS	:=  ../gfx
 ARCH	:=	-mthumb-interwork
 
 CFLAGS	:=	-g -Wall -Wno-psabi -O2 \
- 		-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
-		-ffast-math \
-		$(ARCH)
+	 		-march=armv5te -mtune=arm946e-s -fomit-frame-pointer -ffast-math \
+			$(ARCH)
+#			-mthumb -mthumb-interwork -march=armv5te -mtune=arm946e-s
 
 CFLAGS	+=	$(INCLUDE) -DARM9 -D_NO_BOOTSTUB_
-CXXFLAGS	:= $(CFLAGS) -fno-exceptions -std=gnu++17
+CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++17
+#CXXFLAGS	:= $(CFLAGS) -fno-exceptions -std=gnu++17
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=../ds_arm9_hi.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)

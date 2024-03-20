@@ -40,6 +40,10 @@ std::string prevTime;
 
 bool applaunch = false;
 
+extern bool __dsimode;
+bool forceNTRMode = true;
+
+
 static int bg3;
 
 //---------------------------------------------------------------------------------
@@ -74,12 +78,8 @@ void vblankHandler (void) {
 	}
 }
 
-extern bool __dsimode;
-bool forceNTRMode = true;
-
-//---------------------------------------------------------------------------------
-int main(int argc, char **argv) {
-//---------------------------------------------------------------------------------
+// MBK/RAM change should be done from ITCM as GBATek suggested. ;)
+ITCM_CODE void SETSCFG() {
 	if (forceNTRMode && (REG_SCFG_EXT & BIT(31))) {
 		__dsimode = false;
 		int i;
@@ -100,6 +100,12 @@ int main(int argc, char **argv) {
 		for (i = 0; i < 30; i++) { while(REG_VCOUNT!=191); while(REG_VCOUNT==191); }
 		// REG_SCFG_EXT &= ~(1UL << 31);
 	}
+}
+
+//---------------------------------------------------------------------------------
+int main(int argc, char **argv) {
+//---------------------------------------------------------------------------------
+	SETSCFG();
 	
 	// overwrite reboot stub identifier
 	extern u64 *fake_heap_end;
@@ -112,18 +118,15 @@ int main(int argc, char **argv) {
 	bool yHeld = false;
 
 	// sprintf(titleName, "GodMode9i %s", VER_NUMBER);
-	sprintf(titleName, "GodMode9Nrio %s", "v3.4.4-NRIO");
+	sprintf(titleName, "GodMode9Nrio %s", "v3.4.5-NRIO");
 
 	// initialize video mode
 	videoSetMode(MODE_5_2D);
 	videoSetModeSub(MODE_5_2D);
 
 	// initialize VRAM banks
-	vramSetPrimaryBanks(VRAM_A_MAIN_BG,
-	                    VRAM_B_MAIN_SPRITE,
-	                    VRAM_C_SUB_BG,
-	                    VRAM_D_LCD);
-	vramSetBankI(VRAM_I_SUB_SPRITE);
+	// vramSetPrimaryBanks(VRAM_A_MAIN_BG, VRAM_B_MAIN_SPRITE, VRAM_C_SUB_BG);
+	// vramSetBankI(VRAM_I_SUB_SPRITE);
 
 	// Init built-in font
 	font = new Font(nullptr);

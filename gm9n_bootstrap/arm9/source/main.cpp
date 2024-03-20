@@ -77,24 +77,29 @@ void CartridgePrompt() {
 	for (int i = 0; i < 20; i++) { swiWaitForVBlank(); }
 }
 
-int main( int argc, char **argv) {
+
+ITCM_CODE void CheckSlot() {
+	if (REG_SCFG_MC == 0x11) {
+		do { CartridgePrompt(); }
+		while (REG_SCFG_MC == 0x11);
+		disableSlot1();
+		for (int i = 0; i < 25; i++) { swiWaitForVBlank(); }
+		enableSlot1();	
+	} else {
+		if(REG_SCFG_MC == 0x10) { 
+			disableSlot1();
+			for (int i = 0; i < 25; i++) { swiWaitForVBlank(); }
+			enableSlot1();
+		}
+	}
+}
+
+ITCM_CODE int main( int argc, char **argv) {
 	defaultExceptionHandler();
 	if (fatInitDefault()) {
 		CIniFile GM9NBootstrap( "/_nds/GM9N_Bootstrap.ini" );		
 		std::string	ndsPath = GM9NBootstrap.GetString( "GM9N_BOOTSTRAP", "SRL", "/NDS/GodMode9Nrio.nds");
-		if (REG_SCFG_MC == 0x11) {
-			do { CartridgePrompt(); }
-			while (REG_SCFG_MC == 0x11);
-			disableSlot1();
-			for (int i = 0; i < 25; i++) { swiWaitForVBlank(); }
-			enableSlot1();	
-		} else {
-			if(REG_SCFG_MC == 0x10) { 
-				disableSlot1();
-				for (int i = 0; i < 25; i++) { swiWaitForVBlank(); }
-				enableSlot1();
-			}
-		}
+		CheckSlot();
 		runNdsFile(ndsPath.c_str(), 0, NULL);
 	} else {
 		BootSplashInit();
