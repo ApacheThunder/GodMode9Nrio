@@ -305,9 +305,6 @@ TWL_CODE bool twl_flashcardMount(void) {
 		} else if (!memcmp(gameid, "ACEK", 4) || !memcmp(gameid, "YCEP", 4) || !memcmp(gameid, "AHZH", 4) || !memcmp(gameid, "CHPJ", 4) || !memcmp(gameid, "ADLP", 4)) {
 			io_dldi_data = dldiLoadFromBin(ak2_sd_dldi);
 			fatMountSimple("fat", dldiGet());
-		} else if (!memcmp(gameid, "ASMA", 4)) {
-			io_dldi_data = dldiLoadFromBin(r4tf_sd_dldi);
-			fatMountSimple("fat", dldiGet());
 		} else if (sdMounted) {
 			if (access("sd:/gm9i/slot1.dldi", F_OK) == 0)fatMountSimple("fat", &dldiLoadFromFile("sd:/gm9i/slot1.dldi")->ioInterface);
 		}
