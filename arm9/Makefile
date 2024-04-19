@@ -47,12 +47,12 @@ GRAPHICS	:=  ../gfx
 #---------------------------------------------------------------------------------
 ARCH	:=	-mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Wno-psabi -O2\
- 		-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
+CFLAGS	:=	-g -Wall -Wno-psabi -O2 \
+ 		-march=armv5te -mtune=arm946e-s -fomit-frame-pointer \
 		-ffast-math \
 		$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -DARM9 -D_NO_BOOTSTUB_
+CFLAGS	+=	$(INCLUDE) -DARM9 -D_NO_BOOTSTUB_ -D_IO_ALLOW_UNALIGNED -D_IO_USEFASTCNT
 CXXFLAGS	:= $(CFLAGS) -fno-exceptions -std=gnu++17
 
 ASFLAGS	:=	-g $(ARCH)
@@ -61,7 +61,7 @@ LDFLAGS	=	-specs=../ds_arm9_hi.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project (order is important)
 #---------------------------------------------------------------------------------
-LIBS	:= 	-lfat -lnds9
+LIBS	:= 	-lfat -lnds329
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

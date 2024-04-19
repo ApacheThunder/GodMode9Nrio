@@ -23,7 +23,10 @@
 #include "io_m3_common.h"
 #include "io_g6_common.h"
 #include "io_sc_common.h"
+#include "io_gbcf.h"
 #include "exptools.h"
+
+#include "main.h"
 
 static sNDSHeader nds;
 
@@ -53,10 +56,21 @@ u64 fatSize = 0;
 u64 imgSize = 0;
 u32 ramdSize = 0;
 
+const DISC_INTERFACE io_gbcf_ = {
+    0x47424346, // "GBCF"
+    FEATURE_MEDIUM_CANREAD | FEATURE_MEDIUM_CANWRITE | FEATURE_SLOT_GBA,
+    (FN_MEDIUM_STARTUP)&CF_StartUp,
+    (FN_MEDIUM_ISINSERTED)&CF_IsInserted,
+    (FN_MEDIUM_READSECTORS)&CF_ReadSectors,
+    (FN_MEDIUM_WRITESECTORS)&CF_WriteSectors,
+    (FN_MEDIUM_CLEARSTATUS)&CF_ClearStatus,
+    (FN_MEDIUM_SHUTDOWN)&CF_Shutdown
+};
+
 const char* getDrivePath(void) {
 	switch (currentDrive) {
 		case Drive::sdCard:
-			return "sd:/";
+			if (isDSiMode() || !isRegularDS) { return "sd:/"; } else { return "slot2:/"; }
 		case Drive::flashcard:
 			return "fat:/";
 		case Drive::ramDrive:
@@ -74,10 +88,13 @@ const char* getDrivePath(void) {
 }
 
 Drive getDriveFromPath(const char *path) {
-	Drive destDrive = currentDrive;
-	if(strncmp(path, "sd:", 3) == 0) {
-		return Drive::sdCard;
-	} else if(strncmp(path, "fat:", 4) == 0) {
+	// if(strncmp(path, "sd:", 3) == 0) {
+	if (isDSiMode() || !isRegularDS) {
+		if (strncmp(path, "sd:", 3) == 0)return Drive::sdCard;
+	} else {
+		if (strncmp(path, "slot2:", 6) == 0)return Drive::sdCard;
+	}
+	if(strncmp(path, "fat:", 4) == 0) {
 		return Drive::flashcard;
 	} else if(strncmp(path, "ram:", 4)) {
 		return Drive::ramDrive;
@@ -112,7 +129,8 @@ bool photoFound(void) {
 }
 
 bool sdFound(void) {
-	return (access("sd:/", F_OK) == 0);
+	if (isDSiMode() || !isRegularDS) { return (access("sd:/", F_OK) == 0); } else { return (access("slot2:/", F_OK) == 0); }
+	// return false;
 }
 
 bool flashcardFound(void) {
@@ -120,11 +138,7 @@ bool flashcardFound(void) {
 }
 
 bool bothSDandFlashcard(void) {
-	if (sdMounted && flashcardMounted) {
-		return true;
-	} else {
-		return false;
-	}
+	if (sdMounted && flashcardMounted) { return true; } else { return false; }
 }
 
 bool imgFound(void) {
@@ -156,23 +170,28 @@ bool nandMount(void) {
 }
 
 void nandUnmount(void) {
-	if(nandMounted)
-		fatUnmount("nand");
-	if(photoMounted)
-		fatUnmount("photo");
+	if(nandMounted)fatUnmount("nand");
+	if(photoMounted)fatUnmount("photo");
 	nandSize = 0;
 	nandMounted = false;
 }
 
 bool sdMount(void) {
-	fatMountSimple("sd", __my_io_dsisd());
+	if (isDSiMode() || !isRegularDS) {
+		fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
+		fatMountSimple("sd", __my_io_dsisd());
+	} else if (isRegularDS) {
+		fatMountSimple("slot2", &io_gbcf_); 
+	}
 	if (sdFound()) {
 		sdMountedDone = true;
-		fatGetVolumeLabel("sd", sdLabel);
+		if (isDSiMode() || !isRegularDS) { fatGetVolumeLabel("sd", sdLabel); } else { fatGetVolumeLabel("slot2", sdLabel); }
 		fixLabel(sdLabel);
 		struct statvfs st;
-		if (statvfs("sd:/", &st) == 0) {
-			sdSize = st.f_bsize * st.f_blocks;
+		if (isDSiMode() || !isRegularDS) {
+			if (statvfs("sd:/", &st) == 0)sdSize = st.f_bsize * st.f_blocks;
+		} else { 
+			if (statvfs("slot2:/", &st) == 0)sdSize = st.f_bsize * st.f_blocks;
 		}
 		return true;
 	}
@@ -186,11 +205,8 @@ u64 getBytesFree(const char* drivePath) {
 }
 
 void sdUnmount(void) {
-	if(imgMounted && imgCurrentDrive == Drive::sdCard)
-		imgUnmount();
-	if(nitroMounted && nitroCurrentDrive == Drive::sdCard)
-		nitroUnmount();
-
+	if(imgMounted && imgCurrentDrive == Drive::sdCard)imgUnmount();
+	if(nitroMounted && nitroCurrentDrive == Drive::sdCard)nitroUnmount();
 	fatUnmount("sd");
 	my_sdio_Shutdown();
 	sdLabel[0] = '\0';
@@ -200,9 +216,7 @@ void sdUnmount(void) {
 
 TWL_CODE DLDI_INTERFACE* dldiLoadFromBin (const u8 dldiAddr[]) {
 	// Check that it is a valid DLDI
-	if (!dldiIsValid ((DLDI_INTERFACE*)dldiAddr)) {
-		return NULL;
-	}
+	if (!dldiIsValid ((DLDI_INTERFACE*)dldiAddr))return NULL;
 
 	DLDI_INTERFACE* device = (DLDI_INTERFACE*)dldiAddr;
 	size_t dldiSize;
@@ -242,11 +256,8 @@ TWL_CODE bool UpdateCardInfo(char* gameid, char* gamename) {
 }
 
 const DISC_INTERFACE *dldiGet(void) {
-	if(io_dldi_data->ioInterface.features & FEATURE_SLOT_GBA)
-		sysSetCartOwner(BUS_OWNER_ARM9);
-	if(io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS)
-		sysSetCardOwner(BUS_OWNER_ARM9);
-
+	if(io_dldi_data->ioInterface.features & FEATURE_SLOT_GBA)sysSetCartOwner(BUS_OWNER_ARM9);
+	if(io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS)sysSetCardOwner(BUS_OWNER_ARM9);
 	return &io_dldi_data->ioInterface;
 }
 
@@ -257,11 +268,12 @@ TWL_CODE bool twl_flashcardMount(void) {
 		// Reset Slot-1 to allow reading title name and ID
 		if (slot1Enabled) {
 			disableSlot1();
-			for(int i = 0; i < 25; i++) { swiWaitForVBlank(); }
+			for(int i = 0; i < 25; i++)swiWaitForVBlank();
 			slot1Enabled = false;
 		}
 		if (appInited) {
-			for(int i = 0; i < 35; i++) { swiWaitForVBlank(); }	// Make sure cart is inserted correctly
+			 // Make sure cart is inserted correctly
+			for(int i = 0; i < 35; i++)swiWaitForVBlank();
 		}
 		if (REG_SCFG_MC == 0x11) {
 			sysSetCardOwner (BUS_OWNER_ARM7);
@@ -293,6 +305,11 @@ TWL_CODE bool twl_flashcardMount(void) {
 		} else if (!memcmp(gameid, "ACEK", 4) || !memcmp(gameid, "YCEP", 4) || !memcmp(gameid, "AHZH", 4) || !memcmp(gameid, "CHPJ", 4) || !memcmp(gameid, "ADLP", 4)) {
 			io_dldi_data = dldiLoadFromBin(ak2_sd_dldi);
 			fatMountSimple("fat", dldiGet());
+		} else if (!memcmp(gameid, "ASMA", 4)) {
+			io_dldi_data = dldiLoadFromBin(r4tf_sd_dldi);
+			fatMountSimple("fat", dldiGet());
+		} else if (sdMounted) {
+			if (access("sd:/gm9i/slot1.dldi", F_OK) == 0)fatMountSimple("fat", &dldiLoadFromFile("sd:/gm9i/slot1.dldi")->ioInterface);
 		}
 
 		if (flashcardFound()) {
@@ -327,11 +344,8 @@ bool flashcardMount(void) {
 }
 
 void flashcardUnmount(void) {
-	if(imgMounted && imgCurrentDrive == Drive::flashcard)
-		imgUnmount();
-	if(nitroMounted && nitroCurrentDrive == Drive::flashcard)
-		nitroUnmount();
-
+	if(imgMounted && imgCurrentDrive == Drive::flashcard)imgUnmount();
+	if(nitroMounted && nitroCurrentDrive == Drive::flashcard)nitroUnmount();
 	fatUnmount("fat");
 	fatLabel[0] = '\0';
 	fatSize = 0;
@@ -441,9 +455,7 @@ bool imgMount(const char* imgName, bool dsiwareSave) {
 }
 
 void imgUnmount(void) {
-	if(nitroMounted && nitroCurrentDrive == Drive::fatImg)
-		nitroUnmount();
-
+	if(nitroMounted && nitroCurrentDrive == Drive::fatImg)nitroUnmount();
 	fatUnmount("img");
 	img_shutdown();
 	imgLabel[0] = '\0';
@@ -454,12 +466,13 @@ void imgUnmount(void) {
 bool driveWritable(Drive drive) {
 	switch(drive) {
 		case Drive::sdCard:
-			return __my_io_dsisd()->features & FEATURE_MEDIUM_CANWRITE;
+			if (isDSiMode() || !isRegularDS) { return __my_io_dsisd()->features & FEATURE_MEDIUM_CANWRITE; } else { return true; }
 		case Drive::flashcard:
 			return dldiGet()->features & FEATURE_MEDIUM_CANWRITE;
 		case Drive::ramDrive:
 			return io_ram_drive.features & FEATURE_MEDIUM_CANWRITE;
 		case Drive::nand:
+			return false;
 		case Drive::nandPhoto:
 			return io_dsi_nand.features & FEATURE_MEDIUM_CANWRITE;
 		case Drive::nitroFS:
@@ -495,7 +508,7 @@ bool driveRemoved(Drive drive) {
 u64 driveSizeFree(Drive drive) {
 	switch(drive) {
 		case Drive::sdCard:
-			return getBytesFree("sd:/");
+			if (isDSiMode() || !isRegularDS) { return getBytesFree("sd:/"); } else { return getBytesFree("slot2:/"); }
 		case Drive::flashcard:
 			return getBytesFree("fat:/");
 		case Drive::ramDrive:
@@ -509,6 +522,6 @@ u64 driveSizeFree(Drive drive) {
 		case Drive::fatImg:
 			return getBytesFree("img:/");
 	}
-
 	return 0;
 }
+

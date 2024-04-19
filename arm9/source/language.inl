@@ -41,6 +41,7 @@ STRING(FILE_TOO_BIG, "%s is too large to copy to this drive. Please delete some 
 
 // Drive labels
 STRING(SDCARD_LABEL, "[sd:] SDCARD (%s)")
+STRING(SLOT2CARD_LABEL, "[slot2:] SLOT2CARD (%s)")
 STRING(FLASHCARD_LABEL, "[fat:] FLASHCARD (%s)")
 STRING(RAMDRIVE_LABEL, "[ram:] RAMDRIVE")
 STRING(SYSNAND_LABEL, "[nand:] SYSNAND")
@@ -53,6 +54,7 @@ STRING(NDS_GAMECARD_NO_TITLE, "NDS GAMECARD")
 
 // Drive bottom screen labels
 STRING(SD_FAT, "(SD FAT, %s)")
+STRING(SLOT2_FAT, "(SLOT2 FAT, %s)")
 STRING(N_FREE, "%s free")
 STRING(SLOT1_FAT, "(Slot-1 SD FAT, %s)")
 STRING(GBA_GAME, "(GBA Game, %s)")
@@ -64,7 +66,9 @@ STRING(FAT_IMAGE, "(Image FAT, %s)")
 
 // Bottom screen control info
 STRING(UNMOUNT_SDCARD, "\\R+\\B - Unmount SD card")
+STRING(UNMOUNT_SLOT2CARD, "\\R+\\B - Unmount SD card")
 STRING(REMOUNT_SDCARD, "\\R+\\B - Remount SD card")
+STRING(REMOUNT_SLOT2CARD, "\\R+\\B - Remount SD card")
 STRING(UNMOUNT_FLASHCARD, "\\R+\\B - Unmount Flashcard")
 STRING(START_START_MENU, "START - START menu")
 STRING(POWERTEXT_DS, "POWER - Poweroff")
@@ -108,6 +112,7 @@ STRING(OPEN_HEX, "Open in hex editor")
 STRING(SHOW_DIRECTORY_INFO, "Show directory info")
 STRING(SHOW_FILE_INFO, "Show file info")
 STRING(COPY_SD_OUT, "Copy to sd:/gm9i/out")
+STRING(COPY_SLOT2_OUT, "Copy to slot2:/gm9i/out")
 STRING(COPY_FAT_OUT, "Copy to fat:/gm9i/out")
 STRING(CALC_SHA1, "Calculate SHA1 hash")
 STRING(LOAD_FONT, "Load font")

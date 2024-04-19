@@ -5,6 +5,7 @@
 #include "driveOperations.h"
 #include "file_browse.h"
 #include "font.h"
+#include "main.h"
 
 #include <dirent.h>
 #include <fat.h>
@@ -96,13 +97,14 @@ bool screenshot(void) {
 		return false;
 
 	bool sdWritable = sdMounted && driveWritable(Drive::sdCard);
-	if (access((sdWritable ? "sd:/gm9i" : "fat:/gm9i"), F_OK) != 0) {
-		mkdir((sdWritable ? "sd:/gm9i" : "fat:/gm9i"), 0777);
+	
+	if (isDSiMode() || !isRegularDS) {
+		if (access((sdWritable ? "sd:/gm9i" : "fat:/gm9i"), F_OK) != 0)mkdir((sdWritable ? "sd:/gm9i" : "fat:/gm9i"), 0777);
+		if (access((sdWritable ? "sd:/gm9i/out" : "fat:/gm9i/out"), F_OK) != 0)mkdir((sdWritable ? "sd:/gm9i/out" : "fat:/gm9i/out"), 0777);
+	} else {
+		if (access((sdWritable ? "sd:/gm9i" : "fat:/gm9i"), F_OK) != 0)mkdir((sdWritable ? "slot2:/gm9i" : "fat:/gm9i"), 0777);
+		if (access((sdWritable ? "sd:/gm9i/out" : "fat:/gm9i/out"), F_OK) != 0)mkdir((sdWritable ? "slot2:/gm9i/out" : "fat:/gm9i/out"), 0777);
 	}
-	if (access((sdWritable ? "sd:/gm9i/out" : "fat:/gm9i/out"), F_OK) != 0) {
-		mkdir((sdWritable ? "sd:/gm9i/out" : "fat:/gm9i/out"), 0777);
-	}
-
 	std::string fileTimeText = RetTime("%H%M%S");
 	char snapPath[40];
 	// Take top screenshot
@@ -117,9 +119,12 @@ bool screenshot(void) {
 	lcdMainOnBottom();
 
 	// Take bottom screenshot
-	snprintf(snapPath, sizeof(snapPath), "%s:/gm9i/out/snap_%s_bot.bmp", (sdWritable ? "sd" : "fat"), fileTimeText.c_str());
-	if(!screenshotbmp(snapPath))
-		return false;
+	if (isDSiMode() || !isRegularDS) {
+		snprintf(snapPath, sizeof(snapPath), "%s:/gm9i/out/snap_%s_bot.bmp", (sdWritable ? "sd" : "fat"), fileTimeText.c_str());
+	} else {
+		snprintf(snapPath, sizeof(snapPath), "%s:/gm9i/out/snap_%s_bot.bmp", (sdWritable ? "slot2" : "fat"), fileTimeText.c_str());
+	}
+	if(!screenshotbmp(snapPath))return false;
 
 	font->mainOnTop(true);
 	font->update(true);

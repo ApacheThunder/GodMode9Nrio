@@ -40,6 +40,8 @@
 #include "read_card.h"
 #include "startMenu.h"
 
+#include "main.h"
+
 #define ENTRIES_START_ROW 1
 #define ENTRY_PAGE_LENGTH 10
 
@@ -87,7 +89,11 @@ void dm_drawTopScreen(void) {
 		Palette pal = dmCursorPosition == i ? Palette::white : Palette::gray;
 		switch(dmOperations[i]) {
 			case DriveMenuOperation::sdCard:
-				font->printf(firstCol, i + 1, true, alignStart, pal, STR_SDCARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
+				if (isDSiMode() || !isRegularDS) {
+					font->printf(firstCol, i + 1, true, alignStart, pal, STR_SDCARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
+				} else {
+					font->printf(firstCol, i + 1, true, alignStart, pal, STR_SLOT2CARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
+				}
 				if(!driveWritable(Drive::sdCard))
 					font->print(lastCol, i + 1, true, "[R]", alignEnd, pal);
 				break;
@@ -151,7 +157,12 @@ void dm_drawBottomScreen(void) {
 	font->print(firstCol, row--, false, STR_START_START_MENU, alignStart);
 
 	if ((isDSiMode() && memcmp(io_dldi_data->friendlyName, "Default", 7) == 0) || sdMountedDone) {
-		font->print(firstCol, row--, false, sdMounted ? STR_UNMOUNT_SDCARD : STR_REMOUNT_SDCARD, alignStart);
+		if (!isRegularDS) {
+			font->print(firstCol, row--, false, sdMounted ? STR_UNMOUNT_SDCARD : STR_REMOUNT_SDCARD, alignStart);
+		} else {
+			font->print(firstCol, row--, false, sdMounted ? STR_UNMOUNT_SLOT2CARD : STR_REMOUNT_SLOT2CARD, alignStart);
+		}
+		
 	} else if(flashcardMounted) {
 		font->print(firstCol, row--, false, STR_UNMOUNT_FLASHCARD, alignStart);
 	}
@@ -165,8 +176,13 @@ void dm_drawBottomScreen(void) {
 
 	switch(dmOperations[dmCursorPosition]) {
 		case DriveMenuOperation::sdCard:
-			font->printf(firstCol, 0, false, alignStart, Palette::white, STR_SDCARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
-			font->printf(firstCol, 1, false, alignStart, Palette::white, STR_SD_FAT.c_str(), getBytes(sdSize).c_str());
+			if (isDSiMode() || !isRegularDS) {
+				font->printf(firstCol, 0, false, alignStart, Palette::white, STR_SDCARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
+				font->printf(firstCol, 1, false, alignStart, Palette::white, STR_SD_FAT.c_str(), getBytes(sdSize).c_str());
+			} else {
+				font->printf(firstCol, 0, false, alignStart, Palette::white, STR_SLOT2CARD_LABEL.c_str(), sdLabel[0] == 0 ? STR_UNTITLED.c_str() : sdLabel);
+				font->printf(firstCol, 1, false, alignStart, Palette::white, STR_SLOT2_FAT.c_str(), getBytes(sdSize).c_str());
+			}
 			font->printf(firstCol, 2, false, alignStart, Palette::white, STR_N_FREE.c_str(), getBytes(driveSizeFree(Drive::sdCard)).c_str());
 			break;
 		case DriveMenuOperation::flashcard:
@@ -311,7 +327,7 @@ void driveMenu (void) {
 				}
 				if (sdMounted && sdRemoved) {
 					currentDrive = Drive::sdCard;
-					chdir("sd:/");
+					if (isDSiMode() || !isRegularDS) { chdir("sd:/"); } else { chdir("slot2:/"); }
 					sdUnmount();
 					break;
 				}
@@ -341,7 +357,7 @@ void driveMenu (void) {
 		if (pressed & KEY_A) {
 			if (dmOperations[dmCursorPosition] == DriveMenuOperation::sdCard && sdMounted) {
 				currentDrive = Drive::sdCard;
-				chdir("sd:/");
+				if (isDSiMode() || !isRegularDS) { chdir("sd:/"); } else { chdir("slot2:/"); }
 				screenMode = 1;
 				break;
 			} else if (dmOperations[dmCursorPosition] == DriveMenuOperation::flashcard && flashcardMounted) {
@@ -414,7 +430,7 @@ void driveMenu (void) {
 			if ((isDSiMode() && memcmp(io_dldi_data->friendlyName, "Default", 7) == 0) || sdMountedDone) {
 				if (sdMounted) {
 					currentDrive = Drive::sdCard;
-					chdir("sd:/");
+					if (isDSiMode() || !isRegularDS) { chdir("sd:/"); } else { chdir("slot2:/"); }
 					sdUnmount();
 				} else if(!sdRemoved) {
 					sdMounted = sdMount();

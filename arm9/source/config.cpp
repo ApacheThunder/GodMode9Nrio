@@ -2,6 +2,8 @@
 
 #include "driveOperations.h"
 
+#include "main.h"
+
 #include <nds.h>
 
 Config *config;
@@ -30,7 +32,11 @@ const char *Config::getSystemLanguage() {
 }
 
 Config::Config() {
-	_configPath = sdMounted ? "sd:/gm9i/config.ini" : "fat:/gm9i/config.ini";
+	if (isDSiMode() || !isRegularDS) {
+		_configPath = sdMounted ? "sd:/gm9i/config.ini" : "fat:/gm9i/config.ini";
+	} else {
+		_configPath = sdMounted ? "slot2:/gm9i/config.ini" : "fat:/gm9i/config.ini";
+	}
 
 	// Load from config file
 	CIniFile ini(_configPath);
@@ -38,7 +44,11 @@ Config::Config() {
 	char defaultLanguagePath[40];
 	sniprintf(defaultLanguagePath, sizeof(defaultLanguagePath), "nitro:/languages/%s/language.ini", getSystemLanguage());
 	_languageIniPath = ini.GetString("GODMODE9I", "LANGUAGE_INI_PATH", defaultLanguagePath);
-	_fontPath = ini.GetString("GODMODE9I", "FONT_PATH", "sd:/gm9i/font.frf");
+	if (isDSiMode() || !isRegularDS) {
+		_fontPath = ini.GetString("GODMODE9I", "FONT_PATH", "sd:/gm9i/font.frf");
+	} else {
+		_fontPath = ini.GetString("GODMODE9I", "FONT_PATH", "slot2:/gm9i/font.frf");
+	}
 	_screenSwap = ini.GetInt("GODMODE9I", "SCREEN_SWAP", 0);
 
 	// If the config doesn't exist, create it

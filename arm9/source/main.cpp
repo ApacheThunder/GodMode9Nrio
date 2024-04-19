@@ -45,9 +45,7 @@ static int bg3;
 //---------------------------------------------------------------------------------
 void stop (void) {
 //---------------------------------------------------------------------------------
-	while (1) {
-		swiWaitForVBlank();
-	}
+	while (1)swiWaitForVBlank();
 }
 
 //---------------------------------------------------------------------------------
@@ -60,7 +58,7 @@ void vblankHandler (void) {
 	}
 
 	// Check if GBA cart ejected
-	if(isRegularDS && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS) && *(u8*)(0x080000B2) != 0x96 && romTitle[1][0] != '\0') {
+	if(isRegularDS && !sdMounted && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS) && *(u8*)(0x080000B2) != 0x96 && romTitle[1][0] != '\0') {
 		romTitle[1][0] = '\0';
 		romSize[1] = 0;
 	}
@@ -120,7 +118,7 @@ int main(int argc, char **argv) {
 	fifoWaitValue32(FIFO_USER_06);
 	if (fifoGetValue32(FIFO_USER_03) == 0) arm7SCFGLocked = true;
 	u16 arm7_SNDEXCNT = fifoGetValue32(FIFO_USER_07);
-	if (arm7_SNDEXCNT != 0) isRegularDS = false;	// If sound frequency setting is found, then the console is not a DS Phat/Lite
+	if (arm7_SNDEXCNT != 0) isRegularDS = false; // If sound frequency setting is found, then the console is not a DS Phat/Lite
 	fifoSendValue32(FIFO_USER_07, 0);
 
 	if (isDSiMode()) {
@@ -137,9 +135,7 @@ int main(int argc, char **argv) {
 
 	// Display for 2 seconds
 	font->update(false);
-	for (int i = 0; i < 60*2; i++) {
-		swiWaitForVBlank();
-	}
+	for (int i = 0; i < 60*2; i++)swiWaitForVBlank();
 
 	font->clear(false);
 	font->print(1, 1, false, titleName);
@@ -149,13 +145,9 @@ int main(int argc, char **argv) {
 	font->update(false);
 
 	sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM
-
-	if (isDSiMode() || !isRegularDS) {
-		fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
-		if (!sdRemoved) {
-			sdMounted = sdMount();
-		}
-	}
+	
+	if (!sdRemoved)sdMounted = sdMount();
+	
 	if (isDSiMode()) {
 		scanKeys();
 		yHeld = (keysHeld() & KEY_Y);
@@ -236,11 +228,12 @@ int main(int argc, char **argv) {
 	} else if (isRegularDS && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS)) {
 		ramdriveMount(false);
 	}
+	
 	if (!isDSiMode() || !yHeld) {
 		flashcardMounted = flashcardMount();
 		flashcardMountSkipped = false;
 	}
-
+		
 	// Try to init NitroFS
 	char nandPath[64] = {0};
 	char sdnandPath[64] = {0};
@@ -257,6 +250,7 @@ int main(int argc, char **argv) {
 	else if (nitroFSInit("sd:/GodMode9i.dsi")) nitroCurrentDrive = Drive::sdCard;
 	else if (nitroFSInit("fat:/GodMode9i.nds")) nitroCurrentDrive = Drive::flashcard;
 	else if (nitroFSInit("fat:/GodMode9i.dsi")) nitroCurrentDrive = Drive::flashcard;
+	else if (isRegularDS && nitroFSInit("slot2:/GodMode9i.nds"))nitroCurrentDrive = Drive::sdCard;
 	else {
 		ownNitroFSMounted = 1;
 		nitroMounted = false;
@@ -267,10 +261,16 @@ int main(int argc, char **argv) {
 	}
 
 	// Ensure gm9i folder exists
-	char folderPath[10];
-	sprintf(folderPath, "%s:/gm9i", (sdMounted ? "sd" : "fat"));
-	if ((sdMounted || flashcardMounted) && access(folderPath, F_OK) != 0)
-		mkdir(folderPath, 0777);
+	
+	if (isDSiMode() || !isRegularDS) {
+		char folderPath[10];
+		sprintf(folderPath, "%s:/gm9i", (sdMounted ? "sd" : "fat"));
+		if ((sdMounted || flashcardMounted) && access(folderPath, F_OK) != 0)mkdir(folderPath, 0777);
+	} else {
+		char folderPath[13];
+		sprintf(folderPath, "%s:/gm9i", (sdMounted ? "slot2" : "fat"));
+		if ((sdMounted || flashcardMounted) && access(folderPath, F_OK) != 0)mkdir(folderPath, 0777);
+	}
 
 	// Load config
 	config = new Config();
@@ -362,7 +362,7 @@ int main(int argc, char **argv) {
 				strcpy(filePath + pathLen, name);
 				free(argarray[0]);
 				argarray[0] = filePath;
-				fcopy(argarray[0], "sd:/bootonce.firm");
+				if (isDSiMode() || !isRegularDS) { fcopy(argarray[0], "sd:/bootonce.firm"); } else { fcopy(argarray[0], "slot2:/bootonce.firm"); }
 				fifoSendValue32(FIFO_USER_02, 1);	// Reboot into selected .firm payload
 				swiWaitForVBlank();
 			}
@@ -383,3 +383,4 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
+

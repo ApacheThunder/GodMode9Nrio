@@ -209,13 +209,13 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 
 	operations.push_back(FileOperation::showInfo);
 
-	if (sdMounted && (strcmp(curdir, "sd:/gm9i/out/") != 0)) {
-		operations.push_back(FileOperation::copySdOut);
+	if (isDSiMode() || !isRegularDS) {
+		if (sdMounted && (strcmp(curdir, "sd:/gm9i/out/") != 0))operations.push_back(FileOperation::copySdOut);
+	} else {
+		if (sdMounted && (strcmp(curdir, "slot2:/gm9i/out/") != 0))operations.push_back(FileOperation::copySdOut);
 	}
 
-	if (flashcardMounted && (strcmp(curdir, "fat:/gm9i/out/") != 0)) {
-		operations.push_back(FileOperation::copyFatOut);
-	}
+	if (flashcardMounted && (strcmp(curdir, "fat:/gm9i/out/") != 0))operations.push_back(FileOperation::copyFatOut);
 
 	while (true) {
 		font->clear(false);
@@ -257,7 +257,11 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 					font->print(optionsCol, row++, false, entry->isDirectory ? STR_SHOW_DIRECTORY_INFO : STR_SHOW_FILE_INFO, alignStart);
 					break;
 				case FileOperation::copySdOut:
-					font->print(optionsCol, row++, false, STR_COPY_SD_OUT, alignStart);
+					if (isDSiMode() || !isRegularDS) {
+						font->print(optionsCol, row++, false, STR_COPY_SD_OUT, alignStart);
+					} else {
+						font->print(optionsCol, row++, false, STR_COPY_SLOT2_OUT, alignStart);
+					}
 					break;
 				case FileOperation::copyFatOut:
 					font->print(optionsCol, row++, false, STR_COPY_FAT_OUT, alignStart);
@@ -319,18 +323,35 @@ FileOperation fileBrowse_A(DirEntry* entry, const char *curdir) {
 					gbaCartSaveRestore(entry->name.c_str());
 					break;
 				} case FileOperation::copySdOut: {
-					if (access("sd:/gm9i", F_OK) != 0) {
-						font->print(optionsCol, optionOffset + y, false, STR_CREATING_DIRECTORY, alignStart);
-						font->update(false);
-						mkdir("sd:/gm9i", 0777);
-					}
-					if (access("sd:/gm9i/out", F_OK) != 0) {
-						font->print(optionsCol, optionOffset + y, false, STR_CREATING_DIRECTORY, alignStart);
-						font->update(false);
-						mkdir("sd:/gm9i/out", 0777);
+					if (isDSiMode() || !isRegularDS) {
+						if (access("sd:/gm9i", F_OK) != 0) {
+							font->print(optionsCol, optionOffset + y, false, STR_CREATING_DIRECTORY, alignStart);
+							font->update(false);
+							mkdir("sd:/gm9i", 0777);
+						}
+						if (access("sd:/gm9i/out", F_OK) != 0) {
+							font->print(optionsCol, optionOffset + y, false, STR_CREATING_DIRECTORY, alignStart);
+							font->update(false);
+							mkdir("sd:/gm9i/out", 0777);
+						}
+					} else {
+						if (access("slot2:/gm9i", F_OK) != 0) {
+							font->print(optionsCol, optionOffset + y, false, STR_CREATING_DIRECTORY, alignStart);
+							font->update(false);
+							mkdir("slot2:/gm9i", 0777);
+						}
+						if (access("slot2:/gm9i/out", F_OK) != 0) {
+							font->print(optionsCol, optionOffset + y, false, STR_CREATING_DIRECTORY, alignStart);
+							font->update(false);
+							mkdir("slot2:/gm9i/out", 0777);
+						}
 					}
 					char destPath[256];
-					snprintf(destPath, sizeof(destPath), "sd:/gm9i/out/%s", entry->name.c_str());
+					if (isDSiMode() || !isRegularDS) { 
+						snprintf(destPath, sizeof(destPath), "sd:/gm9i/out/%s", entry->name.c_str());
+					} else {
+						snprintf(destPath, sizeof(destPath), "slot2:/gm9i/out/%s", entry->name.c_str());
+					}
 					font->print(optionsCol, optionOffset + y, false, STR_COPYING, alignStart);
 					font->update(false);
 					remove(destPath);
