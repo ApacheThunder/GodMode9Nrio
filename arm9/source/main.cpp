@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
 		if (!sdMounted)ramdriveMount(false);
 	}
 	
-	if ((!isDSiMode() || !yHeld) && (isRegularDS && !sdMounted)) {
+	if (!isDSiMode() || !yHeld) {
 		flashcardMounted = flashcardMount();
 		flashcardMountSkipped = false;
 	}
