@@ -24,6 +24,7 @@
 #include "io_g6_common.h"
 #include "io_sc_common.h"
 #include "io_gbcf.h"
+// #include "io_scsd.h"
 #include "exptools.h"
 
 #include "main.h"
@@ -66,6 +67,17 @@ const DISC_INTERFACE io_gbcf_ = {
     (FN_MEDIUM_CLEARSTATUS)&CF_ClearStatus,
     (FN_MEDIUM_SHUTDOWN)&CF_Shutdown
 };
+
+/*const DISC_INTERFACE io_scsd_ = {
+    0x53435344, // "SCSD"
+    FEATURE_MEDIUM_CANREAD | FEATURE_MEDIUM_CANWRITE | FEATURE_SLOT_GBA,
+    (FN_MEDIUM_STARTUP)&_SCSD_startUp,
+    (FN_MEDIUM_ISINSERTED)&_SCSD_isInserted,
+    (FN_MEDIUM_READSECTORS)&_SCSD_readSectors,
+    (FN_MEDIUM_WRITESECTORS)&_SCSD_writeSectors,
+    (FN_MEDIUM_CLEARSTATUS)&_SCSD_clearStatus,
+    (FN_MEDIUM_SHUTDOWN)&_SCSD_shutdown
+};*/
 
 const char* getDrivePath(void) {
 	switch (currentDrive) {
@@ -181,7 +193,8 @@ bool sdMount(void) {
 		fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
 		fatMountSimple("sd", __my_io_dsisd());
 	} else if (isRegularDS) {
-		fatMountSimple("slot2", &io_gbcf_); 
+		fatMountSimple("slot2", &io_gbcf_);
+		// fatMountSimple("slot2", &io_scsd_); 
 	}
 	if (sdFound()) {
 		sdMountedDone = true;
@@ -306,7 +319,11 @@ TWL_CODE bool twl_flashcardMount(void) {
 			io_dldi_data = dldiLoadFromBin(ak2_sd_dldi);
 			fatMountSimple("fat", dldiGet());
 		} else if (sdMounted) {
-			if (access("sd:/gm9i/slot1.dldi", F_OK) == 0)fatMountSimple("fat", &dldiLoadFromFile("sd:/gm9i/slot1.dldi")->ioInterface);
+			if (isRegularDS) {
+				if (access("slot2:/gm9i/slot1.dldi", F_OK) == 0)fatMountSimple("fat", &dldiLoadFromFile("slot2:/gm9i/slot1.dldi")->ioInterface);
+			} else {
+				if (access("sd:/gm9i/slot1.dldi", F_OK) == 0)fatMountSimple("fat", &dldiLoadFromFile("sd:/gm9i/slot1.dldi")->ioInterface);
+			}
 		}
 
 		if (flashcardFound()) {

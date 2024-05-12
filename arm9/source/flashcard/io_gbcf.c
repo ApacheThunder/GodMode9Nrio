@@ -138,13 +138,26 @@ CF_FindCardType
 Try and determine brand slot-2 card being used.
 -----------------------------------------------------------------*/
 bool CF_FindCardType(void) {
+	#ifdef _IO_SCCF
+	ShortTimeout = false;
+	goto IOSCCF;
+	#endif
+	#ifdef _IO_M3CF
+	ShortTimeout = false;
+	goto IOM3CF;
+	#endif
+	#ifdef _IO_MMCF
+	goto IOMMCF;
+	#endif
 	// Try default values first (for MPCF)
 	if (CF_IsInserted())return true;
-	
+		
+	IOSCCF:
 	// Try SCCF (This cart uses same registers as MPCF but with additional mode switch registers)
 	SC_ChangeMode(SC_MODE_MEDIA);
 	if (CF_IsInserted())return true;
-	
+		
+	IOM3CF:
 	// Try M3CF Registers
 	CF_STATUS = (vu16*)0x080C0000;
 	CF_FEATURES = (vu16*)0x08820000;
@@ -159,6 +172,8 @@ bool CF_FindCardType(void) {
 	M3_ChangeMode(M3_MODE_MEDIA);
 	if (CF_IsInserted())return true;
 	
+	IOMMCF:
+	
 	// Try MMCF Registers
 	CF_STATUS = (vu16*)0x080E0000;
 	CF_FEATURES = (vu16*)0x08020000;
@@ -169,6 +184,8 @@ bool CF_FindCardType(void) {
 	CF_CYLINDER_HIGH = (vu16*)0x080A0000;
 	CF_SEL_HEAD = (vu16*)0x080C0000;
 	CF_DATA = (vu16*)0x09000000;
+	
+	ShortTimeout = false;
 	
 	if (CF_IsInserted())return true;
 	
