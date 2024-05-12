@@ -3,6 +3,8 @@
 *.nds
 *.cia
 *.elf
+*.zip
+*.dldi
 data/*.bin
 .vscode
 *.DS_Store

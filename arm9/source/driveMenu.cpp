@@ -433,7 +433,7 @@ void driveMenu (void) {
 					if (isDSiMode() || !isRegularDS) { chdir("sd:/"); } else { chdir("slot2:/"); }
 					sdUnmount();
 				} else if(!sdRemoved) {
-					sdMounted = sdMount();
+					sdMounted = sdMount(true);
 				}
 			} else {
 				if (flashcardMounted) {

@@ -43,13 +43,13 @@ extern Drive getDriveFromPath(const char *path);
 
 extern bool nandFound(void);
 extern bool photoFound(void);
-extern bool sdFound(void);
+extern bool sdFound(bool yButton);
 extern bool flashcardFound(void);
 extern bool bothSDandFlashcard(void);
 extern bool imgFound(void);
 extern bool nandMount(void);
 extern void nandUnmount(void);
-extern bool sdMount(void);
+extern bool sdMount(bool yButton);
 extern void sdUnmount(void);
 extern bool flashcardMount(void);
 extern void flashcardUnmount(void);

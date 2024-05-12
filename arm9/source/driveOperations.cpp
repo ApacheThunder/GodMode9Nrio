@@ -23,9 +23,11 @@
 #include "io_m3_common.h"
 #include "io_g6_common.h"
 #include "io_sc_common.h"
-#include "io_gbcf.h"
+// #include "io_gbcf.h"
 // #include "io_scsd.h"
 #include "exptools.h"
+
+#include "driveMenu.h"
 
 #include "main.h"
 
@@ -57,7 +59,7 @@ u64 fatSize = 0;
 u64 imgSize = 0;
 u32 ramdSize = 0;
 
-const DISC_INTERFACE io_gbcf_ = {
+/*const DISC_INTERFACE io_gbcf_ = {
     0x47424346, // "GBCF"
     FEATURE_MEDIUM_CANREAD | FEATURE_MEDIUM_CANWRITE | FEATURE_SLOT_GBA,
     (FN_MEDIUM_STARTUP)&CF_StartUp,
@@ -68,7 +70,7 @@ const DISC_INTERFACE io_gbcf_ = {
     (FN_MEDIUM_SHUTDOWN)&CF_Shutdown
 };
 
-/*const DISC_INTERFACE io_scsd_ = {
+const DISC_INTERFACE io_scsd_ = {
     0x53435344, // "SCSD"
     FEATURE_MEDIUM_CANREAD | FEATURE_MEDIUM_CANWRITE | FEATURE_SLOT_GBA,
     (FN_MEDIUM_STARTUP)&_SCSD_startUp,
@@ -186,29 +188,6 @@ void nandUnmount(void) {
 	if(photoMounted)fatUnmount("photo");
 	nandSize = 0;
 	nandMounted = false;
-}
-
-bool sdMount(void) {
-	if (isDSiMode() || !isRegularDS) {
-		fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
-		fatMountSimple("sd", __my_io_dsisd());
-	} else if (isRegularDS) {
-		fatMountSimple("slot2", &io_gbcf_);
-		// fatMountSimple("slot2", &io_scsd_); 
-	}
-	if (sdFound()) {
-		sdMountedDone = true;
-		if (isDSiMode() || !isRegularDS) { fatGetVolumeLabel("sd", sdLabel); } else { fatGetVolumeLabel("slot2", sdLabel); }
-		fixLabel(sdLabel);
-		struct statvfs st;
-		if (isDSiMode() || !isRegularDS) {
-			if (statvfs("sd:/", &st) == 0)sdSize = st.f_bsize * st.f_blocks;
-		} else { 
-			if (statvfs("slot2:/", &st) == 0)sdSize = st.f_bsize * st.f_blocks;
-		}
-		return true;
-	}
-	return false;
 }
 
 u64 getBytesFree(const char* drivePath) {
@@ -340,6 +319,7 @@ TWL_CODE bool twl_flashcardMount(void) {
 }
 
 bool flashcardMount(void) {
+	if (isRegularDS && flashcardMounted)return true;
 	if (!isDSiMode() || (arm7SCFGLocked && !sdMountedDone)) {
 		fatInitDefault();
 		if (flashcardFound()) {
@@ -366,19 +346,49 @@ void flashcardUnmount(void) {
 	flashcardMounted = false;
 }
 
+bool sdMount(bool yButton) {
+	if (isDSiMode() || !isRegularDS) {
+		fifoSetValue32Handler(FIFO_USER_04, sdStatusHandler, nullptr);
+		fatMountSimple("sd", __my_io_dsisd());
+	} else if (isRegularDS && !yButton) {
+		flashcardMounted = flashcardMount();
+		flashcardMountSkipped = false;
+		if (flashcardMounted) {
+			if (access("fat:/gm9i/slot2.dldi", F_OK) == 0)fatMountSimple("slot2", &dldiLoadFromFile("fat:/gm9i/slot2.dldi")->ioInterface);
+		}
+		// fatMountSimple("slot2", &io_gbcf_);
+		// _SC_changeMode (SC_MODE_MEDIA);
+		// fatMountSimple("slot2", &io_scsd_); 
+	}
+	if (sdFound()) {
+		sdMountedDone = true;
+		if (isDSiMode() || !isRegularDS) { fatGetVolumeLabel("sd", sdLabel); } else { fatGetVolumeLabel("slot2", sdLabel); }
+		fixLabel(sdLabel);
+		struct statvfs st;
+		if (isDSiMode() || !isRegularDS) {
+			if (statvfs("sd:/", &st) == 0)sdSize = st.f_bsize * st.f_blocks;
+		} else { 
+			if (statvfs("slot2:/", &st) == 0)sdSize = st.f_bsize * st.f_blocks;
+		}
+		return true;
+	}
+	return false;
+}
+
+
 void ramdriveMount(bool ram32MB) {
 	if(isDSiMode() || REG_SCFG_EXT != 0) {
 		ramdSectors = ram32MB ? 0xE000 : 0x6000;
-
 		fatMountSimple("ram", &io_ram_drive);
-	} else if (isRegularDS) {
+	} else if (isRegularDS && !sdMounted) {
 		ramdSectors = 0x8 + 0x4000;
 		ramdLocMep = (u8*)0x09000000;
-
+		// Don't attempt to do ram drive stuff with slot2 card if sdMount succeeds.
+		// On regular DS that means a slot2 device was used for SD mount point which means this will break that mount point if device was used as ram.
+		// (most slot2 devices use a mode switch for DLDI media mount so they can't use DLDI at same time anyways)
 		if (*(u16*)(0x020000C0) != 0x334D && *(u16*)(0x020000C0) != 0x3647 && *(u16*)(0x020000C0) != 0x4353 && *(u16*)(0x020000C0) != 0x5A45) {
 			*(u16*)(0x020000C0) = 0;	// Clear Slot-2 flashcard flag
 		}
-
 		if (*(u16*)(0x020000C0) == 0) {
 			*(vu16*)(0x08000000) = 0x4D54;	// Write test
 			if (*(vu16*)(0x08000000) != 0x4D54) {	// If not writeable
@@ -408,7 +418,7 @@ void ramdriveMount(bool ram32MB) {
 				*(vu16*)(0x08240000) = 1; // Try again with Nintendo Memory Expansion Pak
 			}
 		}
-
+	
 		if (*(u16*)(0x020000C0) == 0x334D || *(u16*)(0x020000C0) == 0x3647 || *(u16*)(0x020000C0) == 0x4353) {
 			ramdLocMep = (u8*)0x08000000;
 			ramdSectors = 0x8 + 0x10000;
@@ -416,12 +426,10 @@ void ramdriveMount(bool ram32MB) {
 			ramdLocMep = (u8*)0x08000000;
 			ramdSectors = 0x8 + 0x8000;
 		}
-
 		if (*(u16*)(0x020000C0) != 0 || *(vu16*)(0x08240000) == 1) {
 			fatMountSimple("ram", &io_ram_drive);
 		}
 	}
-
 	ramdriveMounted = (access("ram:/", F_OK) == 0);
 
 	if (ramdriveMounted) {

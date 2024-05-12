@@ -38,6 +38,8 @@ bool is3DS = false;
 int ownNitroFSMounted;
 std::string prevTime;
 
+bool fatInitComplete = false;
+
 bool applaunch = false;
 
 static int bg3;
@@ -58,7 +60,7 @@ void vblankHandler (void) {
 	}
 
 	// Check if GBA cart ejected
-	if(isRegularDS && !sdMounted && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS) && *(u8*)(0x080000B2) != 0x96 && romTitle[1][0] != '\0') {
+	if(fatInitComplete && isRegularDS && !sdMounted && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS) && *(u8*)(0x080000B2) != 0x96 && romTitle[1][0] != '\0') {
 		romTitle[1][0] = '\0';
 		romSize[1] = 0;
 	}
@@ -146,7 +148,7 @@ int main(int argc, char **argv) {
 
 	sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM
 	
-	if (!sdRemoved)sdMounted = sdMount();
+	if (!sdRemoved)sdMounted = sdMount(yHeld);
 	
 	if (isDSiMode()) {
 		scanKeys();
@@ -226,13 +228,15 @@ int main(int argc, char **argv) {
 			nandMount();
 		// }
 	} else if (isRegularDS && (io_dldi_data->ioInterface.features & FEATURE_SLOT_NDS)) {
-		ramdriveMount(false);
+		if (!sdMounted)ramdriveMount(false);
 	}
 	
-	if (!isDSiMode() || !yHeld) {
+	if ((!isDSiMode() || !yHeld) && (isRegularDS && !sdMounted)) {
 		flashcardMounted = flashcardMount();
 		flashcardMountSkipped = false;
 	}
+	
+	fatInitComplete = true;
 		
 	// Try to init NitroFS
 	char nandPath[64] = {0};
@@ -243,23 +247,27 @@ int main(int argc, char **argv) {
 	}
 	ownNitroFSMounted = 0;
 	nitroMounted = true;
-	if (argc > 0 && nitroFSInit(argv[0])) nitroCurrentDrive = argv[0][0] == 's' ? Drive::sdCard : Drive::flashcard;
-	else if (nandPath[0] && nitroFSInit(nandPath)) nitroCurrentDrive = Drive::nand;
-	else if (sdnandPath[0] && nitroFSInit(sdnandPath)) nitroCurrentDrive = Drive::sdCard;
-	else if (nitroFSInit("sd:/GodMode9i.nds")) nitroCurrentDrive = Drive::sdCard;
-	else if (nitroFSInit("sd:/GodMode9i.dsi")) nitroCurrentDrive = Drive::sdCard;
-	else if (nitroFSInit("fat:/GodMode9i.nds")) nitroCurrentDrive = Drive::flashcard;
-	else if (nitroFSInit("fat:/GodMode9i.dsi")) nitroCurrentDrive = Drive::flashcard;
-	else if (isRegularDS && nitroFSInit("slot2:/GodMode9i.nds"))nitroCurrentDrive = Drive::sdCard;
-	else {
-		ownNitroFSMounted = 1;
+	
+	if (isRegularDS && sdMounted) {
 		nitroMounted = false;
-		font->print(-2, -3, false, "NitroFS init failed...", Alignment::right);
-		font->update(false);
-		for (int i = 0; i < 30; i++)
-			swiWaitForVBlank();
+		ownNitroFSMounted = 1;
+	} else {
+		if (argc > 0 && nitroFSInit(argv[0])) nitroCurrentDrive = argv[0][0] == 's' ? Drive::sdCard : Drive::flashcard;
+			else if (nandPath[0] && nitroFSInit(nandPath)) nitroCurrentDrive = Drive::nand;
+			else if (sdnandPath[0] && nitroFSInit(sdnandPath)) nitroCurrentDrive = Drive::sdCard;
+			else if (nitroFSInit("sd:/GodMode9i.nds")) nitroCurrentDrive = Drive::sdCard;
+			else if (nitroFSInit("sd:/GodMode9i.dsi")) nitroCurrentDrive = Drive::sdCard;
+			else if (nitroFSInit("fat:/GodMode9i.nds")) nitroCurrentDrive = Drive::flashcard;
+			else if (nitroFSInit("fat:/GodMode9i.dsi")) nitroCurrentDrive = Drive::flashcard;
+			else if (isRegularDS && nitroFSInit("slot2:/GodMode9i.nds"))nitroCurrentDrive = Drive::sdCard;
+			else {
+				ownNitroFSMounted = 1;
+				nitroMounted = false;
+				font->print(-2, -3, false, "NitroFS init failed...", Alignment::right);
+				font->update(false);
+				for (int i = 0; i < 30; i++)swiWaitForVBlank();
+		}
 	}
-
 	// Ensure gm9i folder exists
 	
 	if (isDSiMode() || !isRegularDS) {
